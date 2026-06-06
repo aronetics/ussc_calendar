@@ -1,7 +1,15 @@
 CXX      := g++
 WX_FLAGS := $(shell wx-config --cxxflags)
 WX_LIBS  := $(shell wx-config --libs all)
-CXXFLAGS := $(WX_FLAGS) -std=c++17 -Wall -O2 -Isrc
+
+# GIT_VERSION is injected at compile time; CI/CD overrides with CI_COMMIT_TAG
+GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
+# CXXFLAGS_EXTRA: append extra flags from the command line without losing defaults
+# e.g.  make CXXFLAGS_EXTRA="-Wextra -Wshadow"
+CXXFLAGS := $(WX_FLAGS) -std=c++17 -Wall -O2 -Isrc \
+            -DAPP_VERSION=\"$(GIT_VERSION)\" \
+            $(CXXFLAGS_EXTRA)
 LDFLAGS  := $(WX_LIBS)
 
 TARGET  := ussc_calendar
