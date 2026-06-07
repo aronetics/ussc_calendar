@@ -1,4 +1,5 @@
 #include "CalendarFrame.h"
+#include "LoginPanel.h"
 #include "MiniCalendar.h"
 #include "MonthView.h"
 #include "WeekView.h"
@@ -87,6 +88,9 @@ CalendarFrame::CalendarFrame()
     store_.Load();
     displayDate_ = wxDateTime::Today();
 
+    // Hide calendar area until the user authenticates
+    viewContainer_->Show(false);
+
     SetViewMode(ViewMode::Month);
     SetDisplayDate(displayDate_);
 
@@ -148,6 +152,15 @@ wxPanel* CalendarFrame::BuildHeader()
 
     hbox->AddStretchSpacer(1);
 
+    // "Signed in as …" label — hidden until login
+    userLabel_ = new wxStaticText(hdr, wxID_ANY, wxEmptyString,
+                                  wxDefaultPosition, wxDefaultSize,
+                                  wxST_NO_AUTORESIZE);
+    userLabel_->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_SWISS)));
+    userLabel_->SetForegroundColour(wxColour(95, 99, 104));
+    userLabel_->Show(false);
+    hbox->Add(userLabel_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
+
     // ── Right side: view toggle buttons ───────────────────────────────────
     auto makeToggle = [&](int id, const wxString& label) -> wxButton* {
         wxButton* b = new wxButton(hdr, id, label,
@@ -183,12 +196,36 @@ wxPanel* CalendarFrame::BuildSidebar()
 {
     wxPanel* sb = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(220, -1));
     sb->SetBackgroundColour(wxColour(248, 249, 250));
+    sidebarPanel_ = sb;   // set early so BuildCalSidebar() can use it as parent
 
     wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
     sb->SetSizer(vbox);
 
+    loginPanel_ = new LoginPanel(sb);
+    loginPanel_->OnLoginSuccess = [this](const std::string& user) {
+        OnLoginSuccess(user);
+    };
+    vbox->Add(loginPanel_, 1, wxEXPAND);
+
+    calSidebar_ = BuildCalSidebar();
+    vbox->Add(calSidebar_, 1, wxEXPAND);
+    calSidebar_->Show(false);
+
+    return sb;
+}
+
+// ── Calendar sidebar (mini-cal + my-cals) — shown after auth ─────────────────
+
+wxPanel* CalendarFrame::BuildCalSidebar()
+{
+    wxPanel* cs = new wxPanel(sidebarPanel_, wxID_ANY);
+    cs->SetBackgroundColour(wxColour(248, 249, 250));
+
+    wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
+    cs->SetSizer(vbox);
+
     // "+ New Event" button
-    wxButton* newBtn = new wxButton(sb, ID_BTN_SIDEBAR_NEW, "+ New Event",
+    wxButton* newBtn = new wxButton(cs, ID_BTN_SIDEBAR_NEW, "+ New Event",
                                     wxDefaultPosition, wxSize(160, 40));
     newBtn->SetFont(wxFont(wxFontInfo(11).Family(wxFONTFAMILY_SWISS)));
     newBtn->SetBackgroundColour(wxColour(26, 115, 232));
@@ -196,24 +233,23 @@ wxPanel* CalendarFrame::BuildSidebar()
     vbox->Add(newBtn, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP | wxBOTTOM, 12);
 
     // MiniCalendar
-    miniCal_ = new MiniCalendar(sb, &store_);
+    miniCal_ = new MiniCalendar(cs, &store_);
     miniCal_->OnDateSelected = [this](const wxDateTime& d) {
         SetDisplayDate(d);
     };
     vbox->Add(miniCal_, 0, wxEXPAND | wxLEFT | wxRIGHT, 4);
 
     // Separator
-    wxPanel* sep = new wxPanel(sb, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
+    wxPanel* sep = new wxPanel(cs, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
     sep->SetBackgroundColour(wxColour(0xDA, 0xDC, 0xE0));
     vbox->Add(sep, 0, wxEXPAND | wxTOP | wxBOTTOM | wxLEFT | wxRIGHT, 8);
 
     // "My calendars" section
-    wxStaticText* myCalLabel = new wxStaticText(sb, wxID_ANY, "My calendars");
+    wxStaticText* myCalLabel = new wxStaticText(cs, wxID_ANY, "My calendars");
     myCalLabel->SetFont(wxFont(wxFontInfo(10).Bold().Family(wxFONTFAMILY_SWISS)));
     myCalLabel->SetForegroundColour(wxColour(60, 64, 67));
     vbox->Add(myCalLabel, 0, wxLEFT | wxBOTTOM, 12);
 
-    // Colored calendar entries
     struct CalEntry { const char* name; wxColour color; };
     static const CalEntry entries[] = {
         { "Personal",   wxColour( 26, 115, 232) },
@@ -224,16 +260,39 @@ wxPanel* CalendarFrame::BuildSidebar()
 
     for (const auto& entry : entries) {
         wxBoxSizer* row = new wxBoxSizer(wxHORIZONTAL);
-        wxPanel* dot = new wxPanel(sb, wxID_ANY, wxDefaultPosition, wxSize(12, 12));
+        wxPanel* dot = new wxPanel(cs, wxID_ANY, wxDefaultPosition, wxSize(12, 12));
         dot->SetBackgroundColour(entry.color);
-        wxStaticText* lbl = new wxStaticText(sb, wxID_ANY, entry.name);
+        wxStaticText* lbl = new wxStaticText(cs, wxID_ANY, entry.name);
         lbl->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_SWISS)));
         row->Add(dot, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
         row->Add(lbl, 0, wxALIGN_CENTER_VERTICAL);
         vbox->Add(row, 0, wxLEFT | wxBOTTOM, 12);
     }
 
-    return sb;
+    return cs;
+}
+
+// ── Login callback ────────────────────────────────────────────────────────────
+
+void CalendarFrame::OnLoginSuccess(const std::string& username)
+{
+    activeUser_ = username;
+
+    loginPanel_->Show(false);
+    calSidebar_->Show(true);
+    sidebarPanel_->Layout();
+
+    viewContainer_->Show(true);
+    GetSizer()->Layout();
+
+    if (userLabel_) {
+        userLabel_->SetLabel(wxString::Format("Signed in as %s",
+                                              wxString::FromUTF8(username)));
+        userLabel_->Show(true);
+        headerPanel_->GetSizer()->Layout();
+    }
+
+    SetDisplayDate(displayDate_);
 }
 
 // ── View area ─────────────────────────────────────────────────────────────────

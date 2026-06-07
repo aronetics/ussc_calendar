@@ -3,11 +3,13 @@
 #include <wx/datetime.h>
 #include "EventStore.h"
 #include <memory>
+#include <string>
 
 class MiniCalendar;
 class MonthView;
 class WeekView;
 class DayView;
+class LoginPanel;
 
 enum class ViewMode { Month, Week, Day };
 
@@ -19,8 +21,12 @@ public:
 private:
     // Layout builders
     wxPanel* BuildHeader();
-    wxPanel* BuildSidebar();
+    wxPanel* BuildSidebar();   // contains loginPanel_ + calSidebar_ stacked
+    wxPanel* BuildCalSidebar();
     wxPanel* BuildViewArea();
+
+    // Login
+    void OnLoginSuccess(const std::string& username);
 
     // Navigation & view switching
     void NavigatePrev(wxCommandEvent&);
@@ -54,8 +60,13 @@ private:
     wxDateTime    displayDate_;
 
     wxPanel*      headerPanel_   = nullptr;
-    wxPanel*      sidebarPanel_  = nullptr;
+    wxPanel*      sidebarPanel_  = nullptr;  // outer left column
+    LoginPanel*   loginPanel_    = nullptr;  // shown before authentication
+    wxPanel*      calSidebar_    = nullptr;  // mini-cal + my-cals (shown after auth)
     wxPanel*      viewContainer_ = nullptr;
+
+    wxStaticText* userLabel_  = nullptr;     // shows "Signed in as …" in header
+    std::string   activeUser_;
 
     MiniCalendar* miniCal_   = nullptr;
     MonthView*    monthView_ = nullptr;
