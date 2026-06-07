@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USSC Calendar — Application Preview (June 2026)</title>
+<style>
+  /* ── Reset / base ─────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Arial, sans-serif;
+    background: #f1f3f4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 0 48px;
+    min-height: 100vh;
+  }
+  .caption {
+    font-size: 12px;
+    color: #5f6368;
+    margin-bottom: 12px;
+    letter-spacing: .4px;
+  }
+
+  /* ── App shell (1280 × 800) ───────────────────────────────────────────── */
+  .app-shell {
+    width: 1280px;
+    height: 800px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    background: #fff;
+  }
+
+  /* ── Menu bar ─────────────────────────────────────────────────────────── */
+  .menubar {
+    height: 24px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dadce0;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  .menubar span {
+    font-size: 12px;
+    color: #202124;
+    cursor: default;
+  }
+  .menubar span:hover { background: #e8eaed; padding: 2px 6px; border-radius: 3px; }
+
+  /* ── Header (56 px) ───────────────────────────────────────────────────── */
+  .header {
+    height: 56px;
+    background: #fff;
+    border-bottom: 1px solid #dadce0;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .fab {
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 0 14px;
+    height: 36px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    margin-right: 8px;
+    letter-spacing: .25px;
+  }
+  .app-title {
+    font-size: 22px;
+    font-weight: 400;
+    color: #202124;
+    margin-right: 16px;
+    letter-spacing: -0.5px;
+  }
+  .hdr-btn {
+    border: 1px solid #dadce0;
+    background: #fff;
+    color: #3c4043;
+    border-radius: 4px;
+    height: 32px;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 10px;
+  }
+  .hdr-btn:hover { background: #f8f9fa; }
+  .btn-today { width: 70px; margin-right: 4px; }
+  .btn-nav   { width: 32px; padding: 0; display: flex; align-items: center;
+               justify-content: center; }
+  .btn-prev  { margin-right: 2px; }
+  .btn-next  { margin-right: 12px; }
+  .date-label {
+    font-size: 20px;
+    color: #202124;
+    font-weight: 400;
+    width: 220px;
+    white-space: nowrap;
+  }
+  .spacer { flex: 1; }
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    margin-right: 16px;
+  }
+  .view-btn {
+    border: 1px solid #dadce0;
+    background: #f0f0f0;
+    color: #3c4043;
+    border-radius: 4px;
+    height: 32px;
+    width: 60px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .view-btn.active {
+    background: #1a73e8;
+    color: #fff;
+    border-color: #1a73e8;
+  }
+
+  /* ── Body ─────────────────────────────────────────────────────────────── */
+  .body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar (220 px) ─────────────────────────────────────────────────── */
+  .sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #f8f9fa;
+    border-right: 1px solid #dadce0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+  .sidebar-new-btn {
+    display: block;
+    width: 160px;
+    height: 40px;
+    margin: 12px auto;
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    letter-spacing: .25px;
+  }
+
+  /* ── Mini Calendar ────────────────────────────────────────────────────── */
+  .mini-cal {
+    padding: 0 4px 4px;
+  }
+  .mini-nav {
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    gap: 4px;
+  }
+  .mini-nav-btn {
+    width: 24px; height: 24px;
+    background: none; border: none;
+    cursor: pointer; font-size: 13px;
+    color: #5f6368;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mini-nav-btn:hover { background: #e8eaed; }
+  .mini-month-label {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #202124;
+  }
+  .mini-grid {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .mini-grid th {
+    font-size: 11px;
+    font-weight: 700;
+    color: #5f6368;
+    text-align: center;
+    height: 20px;
+    width: 28px;
+  }
+  .mini-grid td {
+    text-align: center;
+    font-size: 12px;
+    height: 26px;
+    width: 28px;
+    color: #202124;
+    cursor: pointer;
+    position: relative;
+  }
+  .mini-grid td.out-month { color: #bdbfc4; }
+  .mini-grid td .day-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+  }
+  .mini-grid td.today .day-num {
+    background: #1a73e8; color: #fff;
+  }
+  .mini-grid td:hover .day-num { background: #e8eaed; }
+  .mini-grid td.today:hover .day-num { background: #1558b0; }
+  .mini-event-dot {
+    display: block;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: #1a73e8;
+    margin: 0 auto;
+    position: absolute;
+    bottom: 2px; left: 50%; transform: translateX(-50%);
+  }
+
+  .sidebar-sep {
+    height: 1px;
+    background: #dadce0;
+    margin: 8px 8px;
+  }
+  .my-cals-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #3c4043;
+    padding: 0 12px 8px;
+  }
+  .cal-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px 10px;
+    cursor: pointer;
+  }
+  .cal-dot {
+    width: 12px; height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .cal-entry span {
+    font-size: 13px;
+    color: #202124;
+  }
+
+  /* ── Month View ───────────────────────────────────────────────────────── */
+  .view-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #fff;
+  }
+  .month-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .month-dow-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid #dadce0;
+    flex-shrink: 0;
+  }
+  .month-dow-header div {
+    height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #5f6368;
+    letter-spacing: .8px;
+    border-right: 1px solid #dadce0;
+  }
+  .month-dow-header div:last-child { border-right: none; }
+
+  .month-grid {
+    flex: 1;
+    display: grid;
+    grid-template-rows: repeat(6, 1fr);
+    overflow: hidden;
+  }
+  .month-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-bottom: 1px solid #dadce0;
+  }
+  .month-row:last-child { border-bottom: none; }
+
+  .day-cell {
+    border-right: 1px solid #dadce0;
+    padding: 2px;
+    overflow: hidden;
+    position: relative;
+    min-height: 0;
+  }
+  .day-cell:last-child { border-right: none; }
+  .day-cell.out-month { background: #fafafa; }
+
+  .day-num-wrap {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    margin-bottom: 1px;
+  }
+  .day-num {
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    font-size: 12px;
+    color: #202124;
+    margin-left: 2px;
+  }
+  .day-num.today-num {
+    background: #1a73e8;
+    color: #fff;
+    font-weight: 600;
+  }
+  .day-num.out-month-num { color: #bdbfc4; }
+
+  /* Event pills */
+  .event-pill {
+    display: flex;
+    align-items: center;
+    height: 18px;
+    border-radius: 3px;
+    margin: 1px 2px;
+    padding: 0 4px;
+    overflow: hidden;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .event-pill:hover { filter: brightness(0.92); }
+  .more-link {
+    font-size: 11px;
+    color: #70757a;
+    padding: 1px 4px;
+    cursor: pointer;
+  }
+  .more-link:hover { background: #f1f3f4; border-radius: 3px; }
+
+  /* ── Week View (hidden initially, shown for reference below) ─────────── */
+  .week-view {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Second preview: Week view ────────────────────────────────────────── */
+  .week-shell {
+    width: 1280px;
+    height: 640px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    background: #fff;
+    margin-top: 32px;
+  }
+  .week-caption {
+    font-size: 12px;
+    color: #5f6368;
+    margin: 32px 0 12px;
+    letter-spacing: .4px;
+  }
+
+  /* Week view header */
+  .wv-header {
+    display: flex;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dadce0;
+    height: 40px;
+    flex-shrink: 0;
+  }
+  .wv-time-gutter { width: 56px; flex-shrink: 0; }
+  .wv-day-cols    { flex: 1; display: flex; }
+  .wv-day-hdr {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border-left: 1px solid #dadce0;
+    font-size: 12px; font-weight: 700;
+    color: #3c4043; cursor: pointer;
+  }
+  .wv-day-hdr.today { color: #1a73e8; }
+  .wv-day-hdr:hover { background: #f1f3f4; }
+
+  /* All-day band */
+  .wv-allday {
+    display: flex;
+    height: 30px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dadce0;
+    flex-shrink: 0;
+  }
+  .wv-allday-gutter {
+    width: 56px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 6px;
+    font-size: 9px; color: #70757a;
+  }
+  .wv-allday-col {
+    flex: 1; border-left: 1px solid #dadce0;
+    position: relative;
+  }
+  .wv-allday-col.today-col { background: #e8f0fe44; }
+
+  /* Time body */
+  .wv-body {
+    flex: 1;
+    display: flex;
+    overflow-y: auto;
+    position: relative;
+  }
+  .wv-time-col {
+    width: 56px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .wv-hour-label {
+    position: absolute;
+    right: 6px;
+    font-size: 9px;
+    color: #70757a;
+    transform: translateY(-50%);
+    white-space: nowrap;
+  }
+  .wv-grid {
+    flex: 1;
+    display: flex;
+    position: relative;
+  }
+  .wv-grid-col {
+    flex: 1;
+    border-left: 1px solid #dadce0;
+    position: relative;
+  }
+  .wv-grid-col.today-col { background: rgba(232,240,254,.35); }
+  .wv-hour-line {
+    position: absolute;
+    left: 0; right: 0;
+    border-top: 1px solid #dadce0;
+  }
+  .wv-halfhour-line {
+    position: absolute;
+    left: 0; right: 0;
+    border-top: 1px dashed #ecedeff;
+  }
+  .wv-event {
+    position: absolute;
+    left: 2px; right: 2px;
+    border-radius: 3px;
+    padding: 2px 4px;
+    font-size: 10px; font-weight: 700;
+    color: #fff; overflow: hidden;
+    cursor: pointer;
+  }
+  .wv-event:hover { filter: brightness(.9); }
+  .wv-event .evt-time { font-size: 9px; font-weight: 400; display: block; }
+
+  /* Current-time line */
+  .wv-now-line {
+    position: absolute;
+    left: 0; right: 0;
+    border-top: 2px solid #ea4335;
+    z-index: 10;
+  }
+  .wv-now-dot {
+    position: absolute;
+    left: -5px; top: -5px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #ea4335;
+  }
+
+  /* ── Day View preview ─────────────────────────────────────────────────── */
+  .day-shell {
+    width: 1280px;
+    height: 500px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    background: #fff;
+    margin-top: 32px;
+  }
+  .day-caption {
+    font-size: 12px;
+    color: #5f6368;
+    margin: 32px 0 12px;
+    letter-spacing: .4px;
+  }
+  .dv-header {
+    height: 56px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dadce0;
+    display: flex; align-items: center;
+    padding: 0 12px;
+    flex-shrink: 0;
+  }
+  .dv-date-title {
+    font-size: 20px; font-weight: 400; color: #202124;
+  }
+  .dv-today-badge {
+    font-size: 20px; font-weight: 700;
+    color: #1a73e8;
+  }
+  .dv-body {
+    flex: 1;
+    display: flex;
+    overflow-y: auto;
+  }
+  .dv-time-col {
+    width: 56px; flex-shrink: 0; position: relative;
+  }
+  .dv-grid-col {
+    flex: 1; position: relative; border-left: 1px solid #dadce0;
+  }
+
+  /* ── Event Dialog Preview ─────────────────────────────────────────────── */
+  .dialog-caption {
+    font-size: 12px; color: #5f6368;
+    margin: 32px 0 12px; letter-spacing: .4px;
+  }
+  .dialog-backdrop {
+    width: 1280px; height: 360px;
+    background: rgba(0,0,0,.35);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 4px; border: 1px solid #dadce0;
+    box-shadow: 0 2px 10px rgba(0,0,0,.15);
+  }
+  .dialog-box {
+    width: 520px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 24px 38px rgba(0,0,0,.24);
+    overflow: hidden;
+  }
+  .dialog-titlebar {
+    padding: 16px 16px 8px;
+    font-size: 18px; font-weight: 500; color: #202124;
+    border-bottom: 1px solid #dadce0;
+  }
+  .dialog-body { padding: 16px; }
+  .dialog-row  {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  }
+  .dialog-row label {
+    width: 90px; font-size: 12px; color: #5f6368; text-align: right;
+    flex-shrink: 0;
+  }
+  .dialog-row input, .dialog-row select {
+    flex: 1; height: 32px; border: 1px solid #dadce0; border-radius: 4px;
+    padding: 0 8px; font-size: 13px; color: #202124;
+    outline: none;
+  }
+  .dialog-row input:focus, .dialog-row select:focus {
+    border-color: #1a73e8; box-shadow: 0 0 0 2px #1a73e844;
+  }
+  .title-input { font-size: 18px !important; height: 40px !important; }
+  .color-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .color-chip  {
+    width: 24px; height: 24px; border-radius: 50%;
+    cursor: pointer; border: 3px solid transparent;
+    transition: transform .1s;
+  }
+  .color-chip:hover { transform: scale(1.2); }
+  .color-chip.selected { border-color: rgba(0,0,0,.3); }
+  .dialog-footer {
+    padding: 8px 16px;
+    display: flex; justify-content: flex-end; gap: 8px;
+    border-top: 1px solid #dadce0;
+  }
+  .btn-cancel {
+    height: 36px; padding: 0 20px;
+    border: 1px solid #dadce0; background: #fff;
+    border-radius: 4px; font-size: 13px; cursor: pointer; color: #3c4043;
+  }
+  .btn-save {
+    height: 36px; padding: 0 20px;
+    background: #1a73e8; color: #fff;
+    border: none; border-radius: 4px; font-size: 13px; cursor: pointer;
+    font-weight: 600;
+  }
+  .btn-cancel:hover { background: #f8f9fa; }
+  .btn-save:hover   { background: #1558b0; }
+</style>
+</head>
+<body>
+
+<p class="caption">USSC Calendar · First-pass build · wxWidgets 3.2 · June 2026 · Month View (default)</p>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MONTH VIEW — Default startup state
+═══════════════════════════════════════════════════════════════ -->
+<div class="app-shell">
+
+  <!-- Menu bar -->
+  <div class="menubar">
+    <span>File</span>
+    <span>Help</span>
+  </div>
+
+  <!-- Header 56 px -->
+  <div class="header">
+    <button class="fab">+ New event</button>
+    <span class="app-title">Calendar</span>
+    <button class="hdr-btn btn-today">Today</button>
+    <button class="hdr-btn btn-nav btn-prev">&lt;</button>
+    <button class="hdr-btn btn-nav btn-next">&gt;</button>
+    <span class="date-label">June 2026</span>
+    <div class="spacer"></div>
+    <div class="view-toggle">
+      <button class="view-btn">Day</button>
+      <button class="view-btn">Week</button>
+      <button class="view-btn active">Month</button>
+    </div>
+  </div>
+
+  <!-- Body -->
+  <div class="body">
+
+    <!-- Sidebar 220 px -->
+    <div class="sidebar">
+      <button class="sidebar-new-btn">+ New Event</button>
+
+      <!-- Mini Calendar -->
+      <div class="mini-cal">
+        <div class="mini-nav">
+          <button class="mini-nav-btn">&lt;</button>
+          <span class="mini-month-label">Jun 2026</span>
+          <button class="mini-nav-btn">&gt;</button>
+        </div>
+        <table class="mini-grid">
+          <thead>
+            <tr><th>S</th><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th></tr>
+          </thead>
+          <tbody>
+            <!-- Row 1: May 31 – Jun 6 -->
+            <tr>
+              <td class="out-month"><span class="day-num">31</span></td>
+              <td><span class="day-num">1</span></td>
+              <td><span class="day-num">2</span></td>
+              <td><span class="day-num">3</span></td>
+              <td><span class="day-num">4</span></td>
+              <td><span class="day-num">5</span></td>
+              <td class="today"><span class="day-num">6</span></td>
+            </tr>
+            <!-- Row 2 -->
+            <tr>
+              <td><span class="day-num">7</span></td>
+              <td><span class="day-num">8</span></td>
+              <td><span class="day-num">9</span></td>
+              <td><span class="day-num">10</span></td>
+              <td><span class="day-num">11</span></td>
+              <td><span class="day-num">12</span></td>
+              <td><span class="day-num">13</span></td>
+            </tr>
+            <!-- Row 3 -->
+            <tr>
+              <td><span class="day-num">14</span></td>
+              <td><span class="day-num">15</span></td>
+              <td><span class="day-num">16</span></td>
+              <td><span class="day-num">17</span></td>
+              <td><span class="day-num">18</span></td>
+              <td><span class="day-num">19</span></td>
+              <td><span class="day-num">20</span></td>
+            </tr>
+            <!-- Row 4 -->
+            <tr>
+              <td><span class="day-num">21</span></td>
+              <td><span class="day-num">22</span></td>
+              <td><span class="day-num">23</span></td>
+              <td><span class="day-num">24</span></td>
+              <td><span class="day-num">25</span></td>
+              <td><span class="day-num">26</span></td>
+              <td><span class="day-num">27</span></td>
+            </tr>
+            <!-- Row 5 -->
+            <tr>
+              <td><span class="day-num">28</span></td>
+              <td><span class="day-num">29</span></td>
+              <td><span class="day-num">30</span></td>
+              <td class="out-month"><span class="day-num">1</span></td>
+              <td class="out-month"><span class="day-num">2</span></td>
+              <td class="out-month"><span class="day-num">3</span></td>
+              <td class="out-month"><span class="day-num">4</span></td>
+            </tr>
+            <!-- Row 6 -->
+            <tr>
+              <td class="out-month"><span class="day-num">5</span></td>
+              <td class="out-month"><span class="day-num">6</span></td>
+              <td class="out-month"><span class="day-num">7</span></td>
+              <td class="out-month"><span class="day-num">8</span></td>
+              <td class="out-month"><span class="day-num">9</span></td>
+              <td class="out-month"><span class="day-num">10</span></td>
+              <td class="out-month"><span class="day-num">11</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sidebar-sep"></div>
+
+      <div class="my-cals-label">My calendars</div>
+      <div class="cal-entry">
+        <div class="cal-dot" style="background:#1a73e8"></div>
+        <span>Personal</span>
+      </div>
+      <div class="cal-entry">
+        <div class="cal-dot" style="background:#0b8043"></div>
+        <span>Work</span>
+      </div>
+      <div class="cal-entry">
+        <div class="cal-dot" style="background:#8e24aa"></div>
+        <span>Birthdays</span>
+      </div>
+      <div class="cal-entry">
+        <div class="cal-dot" style="background:#039be5"></div>
+        <span>Reminders</span>
+      </div>
+    </div><!-- /sidebar -->
+
+    <!-- View area -->
+    <div class="view-area">
+      <div class="month-view">
+
+        <!-- DOW header row -->
+        <div class="month-dow-header">
+          <div>SUN</div><div>MON</div><div>TUE</div>
+          <div>WED</div><div>THU</div><div>FRI</div><div>SAT</div>
+        </div>
+
+        <!-- 6 × 7 grid — June 2026.  June 1 = Monday → first cell = May 31 -->
+        <div class="month-grid">
+
+          <!-- Row 1: May 31 – Jun 6 -->
+          <div class="month-row">
+            <div class="day-cell out-month">
+              <div class="day-num-wrap"><span class="day-num out-month-num">31</span></div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">1</span></div>
+              <div class="event-pill" style="background:#0b8043">All-hands meeting</div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">2</span></div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">3</span></div>
+              <div class="event-pill" style="background:#1a73e8">09:00 AM Sprint review</div>
+              <div class="event-pill" style="background:#8e24aa">02:00 PM 1:1 with Director</div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">4</span></div>
+              <div class="event-pill" style="background:#039be5">10:30 AM Architecture sync</div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">5</span></div>
+              <div class="event-pill" style="background:#f4511e">Team lunch</div>
+            </div>
+            <div class="day-cell">
+              <!-- TODAY — June 6 -->
+              <div class="day-num-wrap"><span class="day-num today-num">6</span></div>
+              <div class="event-pill" style="background:#1a73e8">09:00 AM Standup</div>
+              <div class="event-pill" style="background:#f6bf26;color:#202124">03:00 PM Review</div>
+              <div class="event-pill" style="background:#0b8043">06:00 PM Deploy window</div>
+              <div class="more-link">+1 more</div>
+            </div>
+          </div>
+
+          <!-- Row 2: Jun 7–13 -->
+          <div class="month-row">
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">7</span></div></div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">8</span></div>
+              <div class="event-pill" style="background:#1a73e8">09:00 AM Standup</div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">9</span></div>
+              <div class="event-pill" style="background:#8e24aa">All-day Conference</div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">10</span></div>
+              <div class="event-pill" style="background:#8e24aa">All-day Conference</div>
+              <div class="event-pill" style="background:#039be5">01:00 PM Infra review</div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">11</span></div>
+              <div class="event-pill" style="background:#d50000">Deadline: Q2 report</div>
+            </div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">12</span></div></div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">13</span></div></div>
+          </div>
+
+          <!-- Row 3: Jun 14–20 -->
+          <div class="month-row">
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">14</span></div></div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">15</span></div>
+              <div class="event-pill" style="background:#1a73e8">09:00 AM Standup</div>
+              <div class="event-pill" style="background:#0b8043">11:00 AM Sprint planning</div>
+            </div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">16</span></div></div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">17</span></div>
+              <div class="event-pill" style="background:#3f51b5">Board presentation</div>
+            </div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">18</span></div></div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">19</span></div></div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">20</span></div></div>
+          </div>
+
+          <!-- Row 4: Jun 21–27 -->
+          <div class="month-row">
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">21</span></div></div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">22</span></div>
+              <div class="event-pill" style="background:#1a73e8">09:00 AM Standup</div>
+            </div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">23</span></div></div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">24</span></div>
+              <div class="event-pill" style="background:#039be5">Release candidate cut</div>
+            </div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">25</span></div></div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">26</span></div></div>
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">27</span></div></div>
+          </div>
+
+          <!-- Row 5: Jun 28–Jul 4 -->
+          <div class="month-row">
+            <div class="day-cell"><div class="day-num-wrap"><span class="day-num">28</span></div></div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">29</span></div>
+              <div class="event-pill" style="background:#1a73e8">09:00 AM Standup</div>
+            </div>
+            <div class="day-cell">
+              <div class="day-num-wrap"><span class="day-num">30</span></div>
+              <div class="event-pill" style="background:#d50000">EOQ close</div>
+            </div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">1</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">2</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">3</span></div></div>
+            <div class="day-cell out-month">
+              <div class="day-num-wrap"><span class="day-num out-month-num">4</span></div>
+              <div class="event-pill" style="background:#f4511e">Independence Day</div>
+            </div>
+          </div>
+
+          <!-- Row 6: Jul 5–11 -->
+          <div class="month-row">
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">5</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">6</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">7</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">8</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">9</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">10</span></div></div>
+            <div class="day-cell out-month"><div class="day-num-wrap"><span class="day-num out-month-num">11</span></div></div>
+          </div>
+
+        </div><!-- /month-grid -->
+      </div><!-- /month-view -->
+    </div><!-- /view-area -->
+
+  </div><!-- /body -->
+</div><!-- /app-shell -->
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     WEEK VIEW — Jun 1–7, 2026 (scrolled to 7 AM, today = Sat Jun 6)
+═══════════════════════════════════════════════════════════════ -->
+<p class="week-caption">Week View — Jun 1–7, 2026 (scrolled to 07:00, current-time line at 17:35)</p>
+<div class="week-shell">
+
+  <!-- Day header -->
+  <div class="wv-header">
+    <div class="wv-time-gutter"></div>
+    <div class="wv-day-cols">
+      <div class="wv-day-hdr"><span>SUN 1</span></div>
+      <div class="wv-day-hdr"><span>MON 2</span></div>
+      <div class="wv-day-hdr"><span>TUE 3</span></div>
+      <div class="wv-day-hdr"><span>WED 4</span></div>
+      <div class="wv-day-hdr"><span>THU 5</span></div>
+      <div class="wv-day-hdr today"><span>SAT 6</span></div>
+      <div class="wv-day-hdr"><span>SUN 7</span></div>
+    </div>
+  </div>
+
+  <!-- All-day band -->
+  <div class="wv-allday">
+    <div class="wv-allday-gutter">all-day</div>
+    <div class="wv-allday-col"></div>
+    <div class="wv-allday-col">
+      <div class="event-pill" style="background:#0b8043;margin:4px 2px;height:22px;font-size:10px">All-hands</div>
+    </div>
+    <div class="wv-allday-col"></div>
+    <div class="wv-allday-col"></div>
+    <div class="wv-allday-col"></div>
+    <div class="wv-allday-col today-col"></div>
+    <div class="wv-allday-col"></div>
+  </div>
+
+  <!-- Time body (virtual 1440px, shown from 7 AM = 420px offset) -->
+  <div class="wv-body" id="weekBody">
+    <!-- Time column -->
+    <div class="wv-time-col" style="position:relative; height:1440px">
+      <span class="wv-hour-label" style="top:0px">12 AM</span>
+      <span class="wv-hour-label" style="top:60px">1 AM</span>
+      <span class="wv-hour-label" style="top:120px">2 AM</span>
+      <span class="wv-hour-label" style="top:180px">3 AM</span>
+      <span class="wv-hour-label" style="top:240px">4 AM</span>
+      <span class="wv-hour-label" style="top:300px">5 AM</span>
+      <span class="wv-hour-label" style="top:360px">6 AM</span>
+      <span class="wv-hour-label" style="top:420px">7 AM</span>
+      <span class="wv-hour-label" style="top:480px">8 AM</span>
+      <span class="wv-hour-label" style="top:540px">9 AM</span>
+      <span class="wv-hour-label" style="top:600px">10 AM</span>
+      <span class="wv-hour-label" style="top:660px">11 AM</span>
+      <span class="wv-hour-label" style="top:720px">12 PM</span>
+      <span class="wv-hour-label" style="top:780px">1 PM</span>
+      <span class="wv-hour-label" style="top:840px">2 PM</span>
+      <span class="wv-hour-label" style="top:900px">3 PM</span>
+      <span class="wv-hour-label" style="top:960px">4 PM</span>
+      <span class="wv-hour-label" style="top:1020px">5 PM</span>
+      <span class="wv-hour-label" style="top:1080px">6 PM</span>
+      <span class="wv-hour-label" style="top:1140px">7 PM</span>
+      <span class="wv-hour-label" style="top:1200px">8 PM</span>
+      <span class="wv-hour-label" style="top:1260px">9 PM</span>
+      <span class="wv-hour-label" style="top:1320px">10 PM</span>
+      <span class="wv-hour-label" style="top:1380px">11 PM</span>
+    </div>
+
+    <!-- Day columns (1440 px virtual) -->
+    <div class="wv-grid" style="position:relative;height:1440px">
+      <!-- Hour lines -->
+      <div style="position:absolute;left:0;right:0;top:0;height:1440px;pointer-events:none">
+        <div class="wv-hour-line" style="top:0"></div>
+        <div class="wv-hour-line" style="top:60px"></div>
+        <div class="wv-hour-line" style="top:120px"></div>
+        <div class="wv-hour-line" style="top:180px"></div>
+        <div class="wv-hour-line" style="top:240px"></div>
+        <div class="wv-hour-line" style="top:300px"></div>
+        <div class="wv-hour-line" style="top:360px"></div>
+        <div class="wv-hour-line" style="top:420px"></div>
+        <div class="wv-hour-line" style="top:480px"></div>
+        <div class="wv-hour-line" style="top:540px"></div>
+        <div class="wv-hour-line" style="top:600px"></div>
+        <div class="wv-hour-line" style="top:660px"></div>
+        <div class="wv-hour-line" style="top:720px"></div>
+        <div class="wv-hour-line" style="top:780px"></div>
+        <div class="wv-hour-line" style="top:840px"></div>
+        <div class="wv-hour-line" style="top:900px"></div>
+        <div class="wv-hour-line" style="top:960px"></div>
+        <div class="wv-hour-line" style="top:1020px"></div>
+        <div class="wv-hour-line" style="top:1080px"></div>
+        <div class="wv-hour-line" style="top:1140px"></div>
+        <div class="wv-hour-line" style="top:1200px"></div>
+        <div class="wv-hour-line" style="top:1260px"></div>
+        <div class="wv-hour-line" style="top:1320px"></div>
+        <div class="wv-hour-line" style="top:1380px"></div>
+      </div>
+
+      <!-- SUN 1 -->
+      <div class="wv-grid-col"></div>
+      <!-- MON 2 — All-hands + sprint review -->
+      <div class="wv-grid-col">
+        <div class="wv-event" style="background:#0b8043;top:540px;height:30px">
+          <span>All-hands</span>
+        </div>
+      </div>
+      <!-- TUE 3 — sprint review + 1:1 -->
+      <div class="wv-grid-col">
+        <div class="wv-event" style="background:#1a73e8;top:540px;height:30px">
+          <span>Sprint review</span><span class="evt-time">9:00 AM</span>
+        </div>
+        <div class="wv-event" style="background:#8e24aa;top:840px;height:30px">
+          <span>1:1 Director</span><span class="evt-time">2:00 PM</span>
+        </div>
+      </div>
+      <!-- WED 4 — infra -->
+      <div class="wv-grid-col">
+        <div class="wv-event" style="background:#039be5;top:630px;height:30px">
+          <span>Architecture sync</span><span class="evt-time">10:30 AM</span>
+        </div>
+      </div>
+      <!-- THU 5 — team lunch -->
+      <div class="wv-grid-col">
+        <div class="wv-event" style="background:#f4511e;top:720px;height:60px">
+          <span>Team lunch</span><span class="evt-time">12:00 PM</span>
+        </div>
+      </div>
+      <!-- SAT 6 TODAY — standup + review + deploy -->
+      <div class="wv-grid-col today-col" style="position:relative">
+        <div class="wv-event" style="background:#1a73e8;top:540px;height:30px">
+          <span>Standup</span><span class="evt-time">9:00 AM</span>
+        </div>
+        <div class="wv-event" style="background:#f6bf26;color:#202124;top:900px;height:60px">
+          <span>Review</span><span class="evt-time">3:00 PM</span>
+        </div>
+        <div class="wv-event" style="background:#0b8043;top:1080px;height:60px">
+          <span>Deploy window</span><span class="evt-time">6:00 PM</span>
+        </div>
+        <!-- Current time line at 17:35 = 1055px -->
+        <div class="wv-now-line" style="top:1055px">
+          <div class="wv-now-dot"></div>
+        </div>
+      </div>
+      <!-- SUN 7 -->
+      <div class="wv-grid-col"></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     DAY VIEW — Saturday June 6, 2026
+═══════════════════════════════════════════════════════════════ -->
+<p class="day-caption">Day View — Saturday, June 6, 2026</p>
+<div class="day-shell">
+  <div class="dv-header">
+    <span class="dv-date-title">Saturday, June&nbsp;</span>
+    <span class="dv-today-badge">6</span>
+    <span class="dv-date-title">, 2026</span>
+  </div>
+  <div class="dv-body">
+    <!-- Time column -->
+    <div class="dv-time-col" style="height:1440px;position:relative;flex-shrink:0;width:56px">
+      <span class="wv-hour-label" style="top:540px">9 AM</span>
+      <span class="wv-hour-label" style="top:600px">10 AM</span>
+      <span class="wv-hour-label" style="top:660px">11 AM</span>
+      <span class="wv-hour-label" style="top:720px">12 PM</span>
+      <span class="wv-hour-label" style="top:780px">1 PM</span>
+      <span class="wv-hour-label" style="top:840px">2 PM</span>
+      <span class="wv-hour-label" style="top:900px">3 PM</span>
+      <span class="wv-hour-label" style="top:960px">4 PM</span>
+      <span class="wv-hour-label" style="top:1020px">5 PM</span>
+      <span class="wv-hour-label" style="top:1080px">6 PM</span>
+    </div>
+    <!-- Single day column -->
+    <div class="dv-grid-col" style="height:1440px;position:relative">
+      <div class="wv-hour-line" style="top:540px"></div>
+      <div class="wv-hour-line" style="top:600px"></div>
+      <div class="wv-hour-line" style="top:660px"></div>
+      <div class="wv-hour-line" style="top:720px"></div>
+      <div class="wv-hour-line" style="top:780px"></div>
+      <div class="wv-hour-line" style="top:840px"></div>
+      <div class="wv-hour-line" style="top:900px"></div>
+      <div class="wv-hour-line" style="top:960px"></div>
+      <div class="wv-hour-line" style="top:1020px"></div>
+      <div class="wv-hour-line" style="top:1080px"></div>
+      <div class="wv-event" style="background:#1a73e8;top:540px;height:30px;font-size:12px">
+        Standup<span class="evt-time">9:00 – 9:30 AM</span>
+      </div>
+      <div class="wv-event" style="background:#f6bf26;color:#202124;top:900px;height:60px;font-size:12px">
+        Review<span class="evt-time">3:00 – 4:00 PM</span>
+      </div>
+      <div class="wv-event" style="background:#0b8043;top:1080px;height:90px;font-size:12px">
+        Deploy window<span class="evt-time">6:00 – 7:30 PM</span>
+      </div>
+      <!-- Now line at 17:35 -->
+      <div class="wv-now-line" style="top:1055px">
+        <div class="wv-now-dot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     EVENT DIALOG — New Event modal (EventDialog.cpp)
+═══════════════════════════════════════════════════════════════ -->
+<p class="dialog-caption">Event Dialog — Ctrl+N or double-click a time slot</p>
+<div class="dialog-backdrop">
+  <div class="dialog-box">
+    <div class="dialog-titlebar">New Event</div>
+    <div class="dialog-body">
+      <div class="dialog-row">
+        <label>Title</label>
+        <input class="title-input" type="text" placeholder="Add title" value="Architecture sync">
+      </div>
+      <div class="dialog-row">
+        <label>Start</label>
+        <input type="date" value="2026-06-06" style="flex:1;max-width:160px">
+        <input type="time" value="10:30" style="flex:0 0 90px">
+      </div>
+      <div class="dialog-row">
+        <label>End</label>
+        <input type="date" value="2026-06-06" style="flex:1;max-width:160px">
+        <input type="time" value="11:00" style="flex:0 0 90px">
+        <input type="checkbox" id="allday"> <label for="allday" style="width:auto;text-align:left;color:#202124">All day</label>
+      </div>
+      <div class="dialog-row">
+        <label>Location</label>
+        <input type="text" placeholder="Add location" value="Room 4B">
+      </div>
+      <div class="dialog-row">
+        <label>Colour</label>
+        <div class="color-chips">
+          <div class="color-chip" style="background:#d50000" title="Tomato"></div>
+          <div class="color-chip" style="background:#e67c73" title="Flamingo"></div>
+          <div class="color-chip" style="background:#f4511e" title="Tangerine"></div>
+          <div class="color-chip" style="background:#f6bf26" title="Banana"></div>
+          <div class="color-chip" style="background:#33b679" title="Sage"></div>
+          <div class="color-chip" style="background:#0b8043" title="Basil"></div>
+          <div class="color-chip selected" style="background:#039be5" title="Peacock"></div>
+          <div class="color-chip" style="background:#3f51b5" title="Blueberry"></div>
+          <div class="color-chip" style="background:#7986cb" title="Lavender"></div>
+          <div class="color-chip" style="background:#8e24aa" title="Grape"></div>
+          <div class="color-chip" style="background:#616161" title="Graphite"></div>
+          <div class="color-chip" style="background:#1a73e8" title="Default"></div>
+        </div>
+      </div>
+      <div class="dialog-row">
+        <label>Notes</label>
+        <input type="text" placeholder="Add description">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button class="btn-cancel">Cancel</button>
+      <button class="btn-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Scroll week body to 7 AM on load (420px)
+  document.getElementById('weekBody').scrollTop = 420;
+</script>
+</body>
+</html>
