@@ -2,8 +2,14 @@
 #include <wx/valtext.h>
 #include <fstream>
 #include <sstream>
-#include <unistd.h>
-#include <sys/stat.h>
+#ifdef _WIN32
+#  include <windows.h>
+#  include <bcrypt.h>
+#  include <vector>
+#else
+#  include <unistd.h>
+#  include <sys/stat.h>
+#endif
 
 enum {
     ID_LP_SIGNIN = wxID_HIGHEST + 700,
@@ -158,6 +164,35 @@ bool LoginPanel::Authenticate(const std::string& user, const std::string& pass)
 
 std::string LoginPanel::HashPassword(const std::string& password)
 {
+#ifdef _WIN32
+    BCRYPT_ALG_HANDLE  hAlg  = nullptr;
+    BCRYPT_HASH_HANDLE hHash = nullptr;
+    DWORD hashLen = 0, cbData = 0;
+    std::string result;
+
+    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0))
+        return "";
+
+    BCryptGetProperty(hAlg, BCRYPT_HASH_LENGTH,
+                      reinterpret_cast<PBYTE>(&hashLen), sizeof(hashLen), &cbData, 0);
+
+    std::vector<BYTE> hash(hashLen);
+    if (!BCryptCreateHash(hAlg, &hHash, nullptr, 0, nullptr, 0, 0)) {
+        BCryptHashData(hHash,
+                       reinterpret_cast<PUCHAR>(const_cast<char*>(password.c_str())),
+                       static_cast<ULONG>(password.size()), 0);
+        BCryptFinishHash(hHash, hash.data(), hashLen, 0);
+        BCryptDestroyHash(hHash);
+    }
+    BCryptCloseAlgorithmProvider(hAlg, 0);
+
+    char hex[3];
+    for (BYTE b : hash) {
+        std::snprintf(hex, sizeof(hex), "%02x", b);
+        result += hex;
+    }
+    return result;
+#else
     // Write password to a mkstemp temp file (owner-only), hash it, unlink it.
     // Avoids OpenSSL dependency and keeps the password out of the process table.
     char tmp[] = "/tmp/ussc_XXXXXX";
@@ -181,6 +216,7 @@ std::string LoginPanel::HashPassword(const std::string& password)
     }
     unlink(tmp);
     return result;
+#endif
 }
 
 // ── Credential store ──────────────────────────────────────────────────────────
@@ -216,8 +252,9 @@ void LoginPanel::CreateDefaultUsers()
         f << "# Change default credentials before deployment.\n";
         f << "admin:" << adminHash << "\n";
         f.close();
-        // Restrict to owner-read-only
+#ifndef _WIN32
         chmod(usersPath_.c_str(), 0600);
+#endif
     }
     users_["admin"] = adminHash;
 }
