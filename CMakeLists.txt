@@ -22,19 +22,29 @@ include(${wxWidgets_USE_FILE})
 
 # ── Sources ───────────────────────────────────────────────────────────────────
 set(SOURCES
+    src/CalendarConnector.cpp
     src/CalendarFrame.cpp
+    src/CalendarSourcePanel.cpp
+    src/CalendarSourceStore.cpp
+    src/ConnectorDialog.cpp
     src/DayView.cpp
     src/EventDialog.cpp
     src/EventStore.cpp
+    src/EwsConnector.cpp
+    src/GraphApiConnector.cpp
+    src/IcsConnector.cpp
     src/LoginPanel.cpp
     src/MiniCalendar.cpp
     src/MonthView.cpp
+    src/OutlookComConnector.cpp
+    src/UserPanel.cpp
+    src/UserStore.cpp
     src/WeekView.cpp
     src/main.cpp
 )
 
 if(WIN32)
-    add_executable(ussc_calendar WIN32 ${SOURCES})
+    add_executable(ussc_calendar WIN32 ${SOURCES} ussc_calendar.rc)
 else()
     add_executable(ussc_calendar ${SOURCES})
 endif()
@@ -44,7 +54,7 @@ target_compile_definitions(ussc_calendar PRIVATE APP_VERSION="${GIT_VERSION}")
 target_link_libraries(ussc_calendar PRIVATE ${wxWidgets_LIBRARIES})
 
 if(WIN32)
-    target_link_libraries(ussc_calendar PRIVATE bcrypt)
+    target_link_libraries(ussc_calendar PRIVATE bcrypt ole32 oleaut32 winhttp)
 endif()
 
 install(TARGETS ussc_calendar DESTINATION bin)

@@ -12,6 +12,8 @@ class WeekView : public wxScrolledWindow {
 public:
     WeekView(wxWindow* parent, EventStore* store);
     void SetDate(const wxDateTime& d);
+    void SetSpan(int days);               // 7 (week) or 14 (two-week)
+    int  GetSpan() const { return span_; }
     wxDateTime GetDate() const { return weekStart_; }
     void Refresh();
 
@@ -37,6 +39,7 @@ private:
     wxDateTime   weekStart_;
     wxDateTime   today_;
     wxTimer      timer_;
+    int          span_ = 7;    // 7 = week, 14 = two-week
 
     static const int TIME_COL_W = 56;
     static const int HOUR_H     = 60;

@@ -1,0 +1,5 @@
+// ussc_calendar.rc  — Windows resource script
+#include <windows.h>
+
+// Application manifest (DPI awareness, visual styles, OS compatibility)
+1 RT_MANIFEST "ussc_calendar.manifest"

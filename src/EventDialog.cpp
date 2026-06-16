@@ -12,11 +12,14 @@ wxBEGIN_EVENT_TABLE(EventDialog, wxDialog)
     EVT_BUTTON(wxID_OK, EventDialog::OnOK)
 wxEND_EVENT_TABLE()
 
-EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl)
+EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl,
+                         UserStore* users, CalendarSourceStore* sources)
     : wxDialog(parent, wxID_ANY, tmpl.id.empty() ? "New Event" : "Edit Event",
-               wxDefaultPosition, wxSize(480, 560),
+               wxDefaultPosition, wxSize(480, (users || sources) ? 720 : 560),
                wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
-      event_(tmpl)
+      event_(tmpl),
+      users_(users),
+      sources_(sources)
 {
     selectedColor_ = tmpl.color;
 
@@ -95,6 +98,53 @@ EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl)
     BuildColorPicker(this, colorRow);
     root->Add(colorRow, 0, wxLEFT | wxRIGHT | wxBOTTOM, 12);
 
+    // ── Calendar (country/org source) ────────────────────────────────────
+    if (sources_) {
+        root->Add(new wxStaticText(this, wxID_ANY, "Calendar"),
+                  0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+
+        wxArrayString choices;
+        choices.Add("(None)");
+        srcIds_.push_back("");
+
+        static const Alliance alliances[] = {
+            Alliance::CSpO, Alliance::NATO, Alliance::INDOPACOM
+        };
+        for (Alliance a : alliances) {
+            choices.Add(wxString("── ") + CalendarSourceStore::AllianceName(a) + " ──");
+            srcIds_.push_back("__hdr__");  // non-selectable separator
+            for (const auto& src : sources_->Sources()) {
+                if (src.alliance != a) continue;
+                choices.Add(wxString("  ") + wxString::FromUTF8(src.name));
+                srcIds_.push_back(src.id);
+            }
+        }
+
+        srcChoice_ = new wxChoice(this, wxID_ANY, wxDefaultPosition,
+                                   wxDefaultSize, choices);
+        // Select current value
+        int sel = 0;
+        for (size_t i = 0; i < srcIds_.size(); ++i) {
+            if (srcIds_[i] == tmpl.calendarSource) { sel = (int)i; break; }
+        }
+        srcChoice_->SetSelection(sel);
+        root->Add(srcChoice_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
+    }
+
+    // ── Participants ──────────────────────────────────────────────────────
+    if (users_) {
+        root->Add(new wxStaticText(this, wxID_ANY, "Participants (select 3\xe2\x80\x934):"),
+                  0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+        wxScrolledWindow* pscroll = new wxScrolledWindow(this, wxID_ANY,
+            wxDefaultPosition, wxSize(-1, 130),
+            wxVSCROLL | wxBORDER_SIMPLE);
+        pscroll->SetScrollRate(0, 5);
+        wxBoxSizer* psizer = new wxBoxSizer(wxVERTICAL);
+        pscroll->SetSizer(psizer);
+        BuildParticipantPicker(pscroll, psizer);
+        root->Add(pscroll, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
+    }
+
     // ── Buttons ───────────────────────────────────────────────────────────
     wxStdDialogButtonSizer* btns = new wxStdDialogButtonSizer();
     btns->AddButton(new wxButton(this, wxID_OK,     "Save"));
@@ -129,6 +179,47 @@ void EventDialog::BuildColorPicker(wxWindow* parent, wxSizer* sizer)
     }
 }
 
+void EventDialog::BuildParticipantPicker(wxWindow* parent, wxSizer* sizer)
+{
+    if (!users_) return;
+
+    participantChks_.clear();
+    participantIds_.clear();
+
+    wxFont font(wxFontInfo(9).Family(wxFONTFAMILY_SWISS));
+
+    for (const auto& grp : users_->Groups()) {
+        wxStaticText* grpLbl = new wxStaticText(parent, wxID_ANY,
+                                                 wxString::FromUTF8(grp));
+        grpLbl->SetFont(wxFont(wxFontInfo(9).Bold().Family(wxFONTFAMILY_SWISS)));
+        grpLbl->SetForegroundColour(wxColour(95, 99, 104));
+        sizer->Add(grpLbl, 0, wxLEFT | wxTOP, 6);
+
+        for (const auto* u : users_->UsersInGroup(grp)) {
+            bool preChecked = false;
+            for (const auto& pid : event_.participants)
+                if (pid == u->id) { preChecked = true; break; }
+
+            wxBoxSizer* row = new wxBoxSizer(wxHORIZONTAL);
+            wxPanel* dot = new wxPanel(parent, wxID_ANY,
+                                        wxDefaultPosition, wxSize(10, 10));
+            dot->SetBackgroundColour(u->color);
+            wxCheckBox* chk = new wxCheckBox(parent, wxID_ANY,
+                                              wxString::FromUTF8(u->name));
+            chk->SetFont(font);
+            chk->SetValue(preChecked);
+            row->Add(dot, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 6);
+            row->Add(chk, 0, wxALIGN_CENTER_VERTICAL);
+            sizer->Add(row, 0, wxLEFT | wxBOTTOM, 4);
+
+            participantChks_.push_back(chk);
+            participantIds_.push_back(u->id);
+        }
+    }
+
+    parent->FitInside();
+}
+
 void EventDialog::UpdateTimeVisibility()
 {
     bool allDay = allDayChk_->GetValue();
@@ -160,6 +251,19 @@ void EventDialog::OnOK(wxCommandEvent&)
         wxMessageBox("Please enter a title.", "Validation", wxOK | wxICON_WARNING, this);
         return;
     }
+
+    // Calendar source
+    if (srcChoice_) {
+        int sel = srcChoice_->GetSelection();
+        if (sel >= 0 && sel < (int)srcIds_.size() && srcIds_[sel] != "__hdr__")
+            event_.calendarSource = srcIds_[sel];
+    }
+
+    // Collect participants
+    event_.participants.clear();
+    for (size_t i = 0; i < participantChks_.size(); ++i)
+        if (participantChks_[i]->GetValue())
+            event_.participants.push_back(participantIds_[i]);
 
     event_.title       = std::string(titleCtrl_->GetValue().mb_str());
     event_.description = std::string(descCtrl_->GetValue().mb_str());

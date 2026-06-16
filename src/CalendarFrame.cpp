@@ -5,17 +5,31 @@
 #include "WeekView.h"
 #include "DayView.h"
 #include "EventDialog.h"
+#include "UserPanel.h"
+#include "CalendarSourcePanel.h"
+#include "ConnectorDialog.h"
+#include "IcsConnector.h"
+#ifdef _WIN32
+#  include <wx/stdpaths.h>
+#endif
 #include <wx/menu.h>
+#include <wx/filedlg.h>
+#include <fstream>
+#include <sstream>
 #include <wx/sizer.h>
 #include <algorithm>
 
 // ── ID enum ──────────────────────────────────────────────────────────────────
 enum {
+    ID_MENU_ACCOUNTS  = wxID_HIGHEST + 50,
+    ID_MENU_EXPORT_ICS,
+
     ID_BTN_TODAY   = wxID_HIGHEST + 1,
     ID_BTN_PREV,
     ID_BTN_NEXT,
     ID_BTN_MONTH,
     ID_BTN_WEEK,
+    ID_BTN_TWOWEEK,
     ID_BTN_DAY,
     ID_BTN_NEW_FAB,
     ID_BTN_SIDEBAR_NEW,
@@ -30,10 +44,13 @@ wxBEGIN_EVENT_TABLE(CalendarFrame, wxFrame)
     EVT_BUTTON(ID_BTN_NEXT,        CalendarFrame::NavigateNext)
     EVT_BUTTON(ID_BTN_MONTH,       CalendarFrame::OnBtnMonth)
     EVT_BUTTON(ID_BTN_WEEK,        CalendarFrame::OnBtnWeek)
+    EVT_BUTTON(ID_BTN_TWOWEEK,    CalendarFrame::OnBtnTwoWeek)
     EVT_BUTTON(ID_BTN_DAY,         CalendarFrame::OnBtnDay)
     EVT_BUTTON(ID_BTN_NEW_FAB,     CalendarFrame::OnNewEvent)
     EVT_BUTTON(ID_BTN_SIDEBAR_NEW, CalendarFrame::OnNewEvent)
     EVT_MENU(ID_MENU_NEW_EVENT,    CalendarFrame::OnMenuNewEvent)
+    EVT_MENU(ID_MENU_ACCOUNTS,     CalendarFrame::OnMenuAccounts)
+    EVT_MENU(ID_MENU_EXPORT_ICS,   CalendarFrame::OnMenuExportICS)
     EVT_MENU(ID_MENU_QUIT,         CalendarFrame::OnMenuQuit)
     EVT_MENU(ID_MENU_ABOUT,        CalendarFrame::OnMenuAbout)
     EVT_KEY_DOWN(CalendarFrame::OnKeyDown)
@@ -47,11 +64,20 @@ CalendarFrame::CalendarFrame()
 {
     SetMinSize(wxSize(800, 600));
 
+    // Load data before building widgets that reference the stores
+    store_.Load();
+    userStore_.Load();
+    sourceStore_.LoadVisibility();
+    LoadConnectorSettings();
+
     // ── Menu ─────────────────────────────────────────────────────────────
     wxMenuBar* mb = new wxMenuBar();
 
     wxMenu* fileMenu = new wxMenu();
     fileMenu->Append(ID_MENU_NEW_EVENT, "&New Event\tCtrl+N");
+    fileMenu->AppendSeparator();
+    fileMenu->Append(ID_MENU_ACCOUNTS,   "&Accounts...\tCtrl+,");
+    fileMenu->Append(ID_MENU_EXPORT_ICS, "Export &ICS...");
     fileMenu->AppendSeparator();
     fileMenu->Append(ID_MENU_QUIT, "&Quit\tCtrl+Q");
     mb->Append(fileMenu, "&File");
@@ -84,8 +110,7 @@ CalendarFrame::CalendarFrame()
     viewContainer_ = BuildViewArea();
     bodyHBox->Add(viewContainer_, 1, wxEXPAND);
 
-    // ── Load events & set initial state ───────────────────────────────────
-    store_.Load();
+    // (store_.Load() and userStore_.Load() called at top of constructor)
     displayDate_ = wxDateTime::Today();
 
     // Hide calendar area until the user authenticates
@@ -170,13 +195,18 @@ wxPanel* CalendarFrame::BuildHeader()
         return b;
     };
 
-    btnDay_   = makeToggle(ID_BTN_DAY,   "Day");
-    btnWeek_  = makeToggle(ID_BTN_WEEK,  "Week");
-    btnMonth_ = makeToggle(ID_BTN_MONTH, "Month");
+    btnDay_     = makeToggle(ID_BTN_DAY,     "Day");
+    btnWeek_    = makeToggle(ID_BTN_WEEK,    "Week");
+    btnTwoWeek_ = makeToggle(ID_BTN_TWOWEEK, "2 Weeks");
+    btnMonth_   = makeToggle(ID_BTN_MONTH,   "Month");
 
-    hbox->Add(btnDay_,   0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
-    hbox->Add(btnWeek_,  0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
-    hbox->Add(btnMonth_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
+    // Make "2 Weeks" button slightly wider
+    btnTwoWeek_->SetMinSize(wxSize(72, 32));
+
+    hbox->Add(btnDay_,     0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
+    hbox->Add(btnWeek_,    0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
+    hbox->Add(btnTwoWeek_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
+    hbox->Add(btnMonth_,   0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
 
     // Bottom separator
     wxPanel* line = new wxPanel(hdr, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
@@ -244,30 +274,20 @@ wxPanel* CalendarFrame::BuildCalSidebar()
     sep->SetBackgroundColour(wxColour(0xDA, 0xDC, 0xE0));
     vbox->Add(sep, 0, wxEXPAND | wxTOP | wxBOTTOM | wxLEFT | wxRIGHT, 8);
 
-    // "My calendars" section
-    wxStaticText* myCalLabel = new wxStaticText(cs, wxID_ANY, "My calendars");
-    myCalLabel->SetFont(wxFont(wxFontInfo(10).Bold().Family(wxFONTFAMILY_SWISS)));
-    myCalLabel->SetForegroundColour(wxColour(60, 64, 67));
-    vbox->Add(myCalLabel, 0, wxLEFT | wxBOTTOM, 12);
+    // People panel — groups + users with visibility toggles
+    userPanel_ = new UserPanel(cs, &userStore_);
+    userPanel_->OnVisibilityChanged = [this]() { RefreshAllViews(); };
+    vbox->Add(userPanel_, 1, wxEXPAND | wxLEFT | wxRIGHT, 4);
 
-    struct CalEntry { const char* name; wxColour color; };
-    static const CalEntry entries[] = {
-        { "Personal",   wxColour( 26, 115, 232) },
-        { "Work",       wxColour( 11, 128,  67) },
-        { "Birthdays",  wxColour(142,  36, 170) },
-        { "Reminders",  wxColour(  3, 155, 229) }
-    };
+    // Separator
+    wxPanel* sep2 = new wxPanel(cs, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
+    sep2->SetBackgroundColour(wxColour(0xDA, 0xDC, 0xE0));
+    vbox->Add(sep2, 0, wxEXPAND | wxTOP | wxBOTTOM | wxLEFT | wxRIGHT, 4);
 
-    for (const auto& entry : entries) {
-        wxBoxSizer* row = new wxBoxSizer(wxHORIZONTAL);
-        wxPanel* dot = new wxPanel(cs, wxID_ANY, wxDefaultPosition, wxSize(12, 12));
-        dot->SetBackgroundColour(entry.color);
-        wxStaticText* lbl = new wxStaticText(cs, wxID_ANY, entry.name);
-        lbl->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_SWISS)));
-        row->Add(dot, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
-        row->Add(lbl, 0, wxALIGN_CENTER_VERTICAL);
-        vbox->Add(row, 0, wxLEFT | wxBOTTOM, 12);
-    }
+    // Calendar sources — NATO / INDOPACOM country calendars
+    srcPanel_ = new CalendarSourcePanel(cs, &sourceStore_);
+    srcPanel_->OnVisibilityChanged = [this]() { RefreshAllViews(); };
+    vbox->Add(srcPanel_, 1, wxEXPAND | wxLEFT | wxRIGHT, 4);
 
     return cs;
 }
@@ -362,12 +382,16 @@ void CalendarFrame::SetViewMode(ViewMode m)
     viewMode_ = m;
 
     monthView_->Show(m == ViewMode::Month);
-    weekView_->Show(m == ViewMode::Week);
+    weekView_->Show(m == ViewMode::Week || m == ViewMode::TwoWeek);
     dayView_->Show(m == ViewMode::Day);
 
-    StyleToggleBtn(btnMonth_, m == ViewMode::Month);
-    StyleToggleBtn(btnWeek_,  m == ViewMode::Week);
-    StyleToggleBtn(btnDay_,   m == ViewMode::Day);
+    if (m == ViewMode::Week)    weekView_->SetSpan(7);
+    if (m == ViewMode::TwoWeek) weekView_->SetSpan(14);
+
+    StyleToggleBtn(btnMonth_,   m == ViewMode::Month);
+    StyleToggleBtn(btnWeek_,    m == ViewMode::Week);
+    StyleToggleBtn(btnTwoWeek_, m == ViewMode::TwoWeek);
+    StyleToggleBtn(btnDay_,     m == ViewMode::Day);
 
     if (viewContainer_) viewContainer_->Layout();
 
@@ -375,9 +399,10 @@ void CalendarFrame::SetViewMode(ViewMode m)
     UpdateHeaderLabel();
 }
 
-void CalendarFrame::OnBtnMonth(wxCommandEvent&) { SetViewMode(ViewMode::Month); }
-void CalendarFrame::OnBtnWeek(wxCommandEvent&)  { SetViewMode(ViewMode::Week);  }
-void CalendarFrame::OnBtnDay(wxCommandEvent&)   { SetViewMode(ViewMode::Day);   }
+void CalendarFrame::OnBtnMonth(wxCommandEvent&)   { SetViewMode(ViewMode::Month);   }
+void CalendarFrame::OnBtnWeek(wxCommandEvent&)    { SetViewMode(ViewMode::Week);    }
+void CalendarFrame::OnBtnTwoWeek(wxCommandEvent&) { SetViewMode(ViewMode::TwoWeek); }
+void CalendarFrame::OnBtnDay(wxCommandEvent&)     { SetViewMode(ViewMode::Day);     }
 
 // ── Date navigation ───────────────────────────────────────────────────────────
 
@@ -390,6 +415,7 @@ void CalendarFrame::SetDisplayDate(const wxDateTime& d)
             monthView_->SetDate(d);
             break;
         case ViewMode::Week:
+        case ViewMode::TwoWeek:
             weekView_->SetDate(d);
             break;
         case ViewMode::Day:
@@ -413,13 +439,14 @@ void CalendarFrame::UpdateHeaderLabel()
                 displayDate_.GetYear());
             break;
 
-        case ViewMode::Week: {
-            // Show Sunday–Saturday range
+        case ViewMode::Week:
+        case ViewMode::TwoWeek: {
+            int span = (viewMode_ == ViewMode::TwoWeek) ? 13 : 6;
             wxDateTime ws = displayDate_;
             int dow = (int)ws.GetWeekDay();
             ws.Subtract(wxDateSpan::Days(dow));
             wxDateTime we = ws;
-            we.Add(wxDateSpan::Days(6));
+            we.Add(wxDateSpan::Days(span));
             if (ws.GetMonth() == we.GetMonth()) {
                 label = wxString::Format("%s %d \xe2\x80\x93 %d, %d",
                     wxDateTime::GetMonthName(ws.GetMonth(), wxDateTime::Name_Abbr),
@@ -450,6 +477,8 @@ void CalendarFrame::NavigatePrev(wxCommandEvent&)
             displayDate_.Subtract(wxDateSpan::Month()); break;
         case ViewMode::Week:
             displayDate_.Subtract(wxDateSpan::Week()); break;
+        case ViewMode::TwoWeek:
+            displayDate_.Subtract(wxDateSpan::Days(14)); break;
         case ViewMode::Day:
             displayDate_.Subtract(wxDateSpan::Day()); break;
     }
@@ -463,6 +492,8 @@ void CalendarFrame::NavigateNext(wxCommandEvent&)
             displayDate_.Add(wxDateSpan::Month()); break;
         case ViewMode::Week:
             displayDate_.Add(wxDateSpan::Week()); break;
+        case ViewMode::TwoWeek:
+            displayDate_.Add(wxDateSpan::Days(14)); break;
         case ViewMode::Day:
             displayDate_.Add(wxDateSpan::Day()); break;
     }
@@ -495,7 +526,7 @@ void CalendarFrame::CreateEventOnDate(const wxDateTime& date)
     tmpl.end   = tmpl.start;
     tmpl.end.Add(wxTimeSpan::Hour());
 
-    EventDialog dlg(this, tmpl);
+    EventDialog dlg(this, tmpl, &userStore_, &sourceStore_);
     if (dlg.ShowModal() == wxID_OK) {
         CalendarEvent ev = dlg.GetEvent();
         store_.Add(ev);
@@ -513,7 +544,7 @@ void CalendarFrame::EditEvent(const std::string& id)
     }
     if (!found) return;
 
-    EventDialog dlg(this, *found);
+    EventDialog dlg(this, *found, &userStore_, &sourceStore_);
     if (dlg.ShowModal() == wxID_OK) {
         CalendarEvent updated = dlg.GetEvent();
         updated.id = id;
@@ -543,6 +574,155 @@ void CalendarFrame::OnMenuAbout(wxCommandEvent&)
                  "About USSC Calendar", wxOK | wxICON_INFORMATION, this);
 }
 
+// ── Accounts / connector ──────────────────────────────────────────────────────
+
+void CalendarFrame::OnMenuAccounts(wxCommandEvent&)
+{
+    ConnectorDialog dlg(this, connectorSettings_);
+    if (dlg.ShowModal() == wxID_OK) {
+        connectorSettings_ = dlg.GetSettings();
+        SaveConnectorSettings();
+        for (const auto& ev : dlg.ImportedEvents())
+            store_.Add(ev);
+        if (!dlg.ImportedEvents().empty())
+            RefreshAllViews();
+    }
+}
+
+void CalendarFrame::OnMenuExportICS(wxCommandEvent&)
+{
+    wxFileDialog saveDlg(this, "Export Calendar", "",
+                         "ussc_calendar.ics",
+                         "iCalendar files (*.ics)|*.ics",
+                         wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (saveDlg.ShowModal() != wxID_OK) return;
+
+    std::string path = saveDlg.GetPath().ToStdString();
+    std::string errMsg;
+    IcsConnector ics;
+    if (!ics.ExportToFile(store_.Events(), path, errMsg)) {
+        wxMessageBox(wxString::FromUTF8(errMsg), "Export Failed",
+                     wxOK | wxICON_ERROR, this);
+    } else {
+        wxMessageBox(
+            wxString::Format("Exported %zu events to ICS file.", store_.Events().size()),
+            "Export Complete", wxOK | wxICON_INFORMATION, this);
+    }
+}
+
+// ── Connector settings persistence ───────────────────────────────────────────
+
+static std::string ConnectorDataPath()
+{
+#ifdef _WIN32
+    wxString dir = wxStandardPaths::Get().GetUserDataDir();
+    if (!wxDirExists(dir)) wxMkdir(dir);
+    return (dir + "\\cal_connector.json").ToStdString();
+#else
+    std::string dir = wxGetHomeDir().ToStdString() + "/.ussc_calendar";
+    if (!wxDirExists(dir)) wxMkdir(dir);
+    return dir + "/cal_connector.json";
+#endif
+}
+
+void CalendarFrame::LoadConnectorSettings()
+{
+    std::ifstream f(ConnectorDataPath());
+    if (!f.is_open()) return;
+
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    std::string json = ss.str();
+
+    auto extractStr = [&](const std::string& key) -> std::string {
+        std::string needle = "\"" + key + "\":\"";
+        size_t pos = json.find(needle);
+        if (pos == std::string::npos) return "";
+        pos += needle.size();
+        std::string val;
+        while (pos < json.size() && json[pos] != '"') {
+            if (json[pos] == '\\' && pos + 1 < json.size()) {
+                ++pos;
+                if      (json[pos] == '"')  val += '"';
+                else if (json[pos] == '\\') val += '\\';
+                else if (json[pos] == 'n')  val += '\n';
+                else if (json[pos] == 'r')  val += '\r';
+                else                        val += json[pos];
+            } else {
+                val += json[pos];
+            }
+            ++pos;
+        }
+        return val;
+    };
+
+    auto extractInt = [&](const std::string& key) -> int {
+        std::string needle = "\"" + key + "\":";
+        size_t pos = json.find(needle);
+        if (pos == std::string::npos) return 0;
+        pos += needle.size();
+        if (json[pos] == '"') return 0;
+        int val = 0;
+        while (pos < json.size() && std::isdigit((unsigned char)json[pos]))
+            val = val * 10 + (json[pos++] - '0');
+        return val;
+    };
+
+    auto extractBool = [&](const std::string& key) -> bool {
+        std::string needle = "\"" + key + "\":";
+        size_t pos = json.find(needle);
+        if (pos == std::string::npos) return false;
+        pos += needle.size();
+        return json.compare(pos, 4, "true") == 0;
+    };
+
+    connectorSettings_.type              = static_cast<ConnectorType>(extractInt("type"));
+    connectorSettings_.graphTenantId     = extractStr("graphTenantId");
+    connectorSettings_.graphClientId     = extractStr("graphClientId");
+    connectorSettings_.graphAccessToken  = extractStr("graphAccessToken");
+    connectorSettings_.graphRefreshToken = extractStr("graphRefreshToken");
+    connectorSettings_.ewsUrl            = extractStr("ewsUrl");
+    connectorSettings_.ewsUsername       = extractStr("ewsUsername");
+    connectorSettings_.ewsPassword       = extractStr("ewsPassword");
+    connectorSettings_.icsImportPath     = extractStr("icsImportPath");
+    connectorSettings_.icsExportPath     = extractStr("icsExportPath");
+    connectorSettings_.autoSync          = extractBool("autoSync");
+    connectorSettings_.syncIntervalMinutes = extractInt("syncIntervalMinutes");
+}
+
+void CalendarFrame::SaveConnectorSettings() const
+{
+    std::ofstream f(ConnectorDataPath());
+    if (!f.is_open()) return;
+
+    auto esc = [](const std::string& s) -> std::string {
+        std::string out;
+        for (char c : s) {
+            if      (c == '"')  out += "\\\"";
+            else if (c == '\\') out += "\\\\";
+            else if (c == '\n') out += "\\n";
+            else if (c == '\r') out += "\\r";
+            else                out += c;
+        }
+        return out;
+    };
+
+    f << "{"
+      << "\"type\":"                << (int)connectorSettings_.type           << ","
+      << "\"graphTenantId\":\""     << esc(connectorSettings_.graphTenantId)     << "\","
+      << "\"graphClientId\":\""     << esc(connectorSettings_.graphClientId)     << "\","
+      << "\"graphAccessToken\":\""  << esc(connectorSettings_.graphAccessToken)  << "\","
+      << "\"graphRefreshToken\":\"" << esc(connectorSettings_.graphRefreshToken) << "\","
+      << "\"ewsUrl\":\""            << esc(connectorSettings_.ewsUrl)            << "\","
+      << "\"ewsUsername\":\""       << esc(connectorSettings_.ewsUsername)       << "\","
+      << "\"ewsPassword\":\""       << esc(connectorSettings_.ewsPassword)       << "\","
+      << "\"icsImportPath\":\""     << esc(connectorSettings_.icsImportPath)     << "\","
+      << "\"icsExportPath\":\""     << esc(connectorSettings_.icsExportPath)     << "\","
+      << "\"autoSync\":"            << (connectorSettings_.autoSync ? "true" : "false") << ","
+      << "\"syncIntervalMinutes\":" << connectorSettings_.syncIntervalMinutes
+      << "}";
+}
+
 // ── Keyboard ──────────────────────────────────────────────────────────────────
 
 void CalendarFrame::OnKeyDown(wxKeyEvent& e)
@@ -565,6 +745,9 @@ void CalendarFrame::OnKeyDown(wxKeyEvent& e)
             break;
         case 'W': case 'w':
             SetViewMode(ViewMode::Week);
+            break;
+        case '2':
+            SetViewMode(ViewMode::TwoWeek);
             break;
         case 'D': case 'd':
             SetViewMode(ViewMode::Day);

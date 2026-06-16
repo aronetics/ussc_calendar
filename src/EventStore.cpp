@@ -2,6 +2,9 @@
 #include <wx/wx.h>
 #include <wx/dir.h>
 #include <wx/filename.h>
+#ifdef _WIN32
+#  include <wx/stdpaths.h>
+#endif
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -175,10 +178,41 @@ bool CalendarEvent::StartsOnDate(const wxDateTime& d) const
 
 // ── EventStore ────────────────────────────────────────────────────────────────
 
+// ── Participant array helpers ────────────────────────────────────────────────
+
+static std::vector<std::string> ExtractJsonArray(const std::string& json,
+                                                  const std::string& key)
+{
+    std::string search = "\"" + key + "\":[";
+    size_t pos = json.find(search);
+    if (pos == std::string::npos) return {};
+    pos += search.size();
+
+    std::vector<std::string> result;
+    while (pos < json.size()) {
+        while (pos < json.size() && (json[pos] == ' ' || json[pos] == ',')) ++pos;
+        if (pos >= json.size() || json[pos] == ']') break;
+        if (json[pos] != '"') break;
+        ++pos;
+        std::string val;
+        while (pos < json.size() && json[pos] != '"') {
+            if (json[pos] == '\\' && pos + 1 < json.size()) val += json[++pos];
+            else val += json[pos];
+            ++pos;
+        }
+        ++pos;  // skip closing "
+        if (!val.empty()) result.push_back(val);
+    }
+    return result;
+}
+
 EventStore::EventStore()
 {
-    wxString home = wxGetHomeDir();
-    wxString dir  = home + "/.ussc_calendar";
+#ifdef _WIN32
+    wxString dir = wxStandardPaths::Get().GetUserDataDir();
+#else
+    wxString dir = wxGetHomeDir() + "/.ussc_calendar";
+#endif
     if (!wxDirExists(dir))
         wxMkdir(dir);
     path_ = std::string((dir + "/events.json").mb_str());
@@ -206,10 +240,12 @@ void EventStore::Load()
         e.title       = ExtractJsonString(obj, "title");
         e.description = ExtractJsonString(obj, "desc");
         e.location    = ExtractJsonString(obj, "loc");
-        e.allDay      = ExtractJsonBool(obj, "allDay");
-        e.start       = ParseDateTime(ExtractJsonString(obj, "start"));
-        e.end         = ParseDateTime(ExtractJsonString(obj, "end"));
-        e.color       = HexToColour(ExtractJsonString(obj, "color"));
+        e.allDay       = ExtractJsonBool(obj, "allDay");
+        e.start        = ParseDateTime(ExtractJsonString(obj, "start"));
+        e.end          = ParseDateTime(ExtractJsonString(obj, "end"));
+        e.color        = HexToColour(ExtractJsonString(obj, "color"));
+        e.participants    = ExtractJsonArray(obj, "participants");
+        e.calendarSource  = ExtractJsonString(obj, "src");
         if (!e.id.empty()) events_.push_back(e);
     }
 }
@@ -230,8 +266,13 @@ void EventStore::Save() const
           << "\"start\":\""  << FormatDateTime(e.start)   << "\","
           << "\"end\":\""    << FormatDateTime(e.end)     << "\","
           << "\"allDay\":"   << (e.allDay ? "true" : "false") << ","
-          << "\"color\":\""  << ColourToHex(e.color)      << "\""
-          << "}";
+          << "\"color\":\""  << ColourToHex(e.color)      << "\","
+          << "\"participants\":[";
+        for (size_t j = 0; j < e.participants.size(); ++j) {
+            f << "\"" << JsonEscape(e.participants[j]) << "\"";
+            if (j + 1 < e.participants.size()) f << ",";
+        }
+        f << "],\"src\":\"" << JsonEscape(e.calendarSource) << "\"}";
         if (i + 1 < events_.size()) f << ",";
         f << "\n";
     }

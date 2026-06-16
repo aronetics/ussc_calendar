@@ -35,7 +35,7 @@ WeekView::WeekView(wxWindow* parent, EventStore* store)
     SetBackgroundStyle(wxBG_STYLE_PAINT);
     SetScrollRate(1, 1);
 
-    int virtualW = TIME_COL_W + 7 * 120;  // approx
+    int virtualW = TIME_COL_W + span_ * 120;  // approx
     int virtualH = 24 * HOUR_H;
     SetVirtualSize(virtualW, virtualH + HEADER_H + ALLDAY_H);
 
@@ -58,12 +58,19 @@ void WeekView::Refresh()
     wxScrolledWindow::Refresh();
 }
 
+void WeekView::SetSpan(int days)
+{
+    span_ = std::max(1, days);
+    wxSizeEvent dummy;
+    OnSize(dummy);
+}
+
 void WeekView::OnSize(wxSizeEvent& e)
 {
     e.Skip();
     int w = GetClientSize().GetWidth();
-    int colW = std::max(1, (w - TIME_COL_W) / 7);
-    SetVirtualSize(TIME_COL_W + 7 * colW, 24 * HOUR_H + HEADER_H + ALLDAY_H);
+    int colW = std::max(1, (w - TIME_COL_W) / span_);
+    SetVirtualSize(TIME_COL_W + span_ * colW, 24 * HOUR_H + HEADER_H + ALLDAY_H);
     Refresh();
 }
 
@@ -80,9 +87,9 @@ void WeekView::DrawAllDayBand(wxDC& dc, int x, int y, int w, int h)
     dc.SetPen(wxPen(WV_GRID, 1));
     dc.DrawRectangle(x, y, w, h);
 
-    int colW = (w - TIME_COL_W) / 7;
+    int colW = std::max(1, (w - TIME_COL_W) / span_);
 
-    for (int col = 0; col < 7; ++col) {
+    for (int col = 0; col < span_; ++col) {
         wxDateTime d = weekStart_;
         d.Add(wxDateSpan::Days(col));
 
@@ -173,7 +180,7 @@ void WeekView::DrawCurrentTimeLine(wxDC& dc, int dayCol, int timeColW,
 
 void WeekView::DrawDayColumns(wxDC& dc, int x, int y, int w, int h)
 {
-    int colW = std::max(1, (w - TIME_COL_W) / 7);
+    int colW = std::max(1, (w - TIME_COL_W) / span_);
 
     // Hour grid lines
     for (int hour = 0; hour <= 24; ++hour) {
@@ -188,7 +195,7 @@ void WeekView::DrawDayColumns(wxDC& dc, int x, int y, int w, int h)
     }
 
     // Day columns
-    for (int col = 0; col < 7; ++col) {
+    for (int col = 0; col < span_; ++col) {
         wxDateTime d = weekStart_;
         d.Add(wxDateSpan::Days(col));
 
@@ -252,7 +259,7 @@ void WeekView::OnPaint(wxPaintEvent&)
 
     eRects_.clear();
 
-    int colW   = std::max(1, (w - TIME_COL_W) / 7);
+    int colW   = std::max(1, (w - TIME_COL_W) / span_);
     int bodyH  = 24 * HOUR_H;
 
     // ── Fixed header (scrolled along with content) ────────────────────────
@@ -268,7 +275,7 @@ void WeekView::OnPaint(wxPaintEvent&)
     dc.SetFont(wxFont(wxFontInfo(11).Bold().Family(wxFONTFAMILY_SWISS)));
     static const char* DOW_SHORT[] = {"SUN","MON","TUE","WED","THU","FRI","SAT"};
 
-    for (int col = 0; col < 7; ++col) {
+    for (int col = 0; col < span_; ++col) {
         wxDateTime d = weekStart_;
         d.Add(wxDateSpan::Days(col));
 
@@ -285,7 +292,8 @@ void WeekView::OnPaint(wxPaintEvent&)
             dc.SetTextForeground(wxColour(60, 64, 67));
         }
 
-        wxString label = wxString::Format("%s %d", DOW_SHORT[col], d.GetDay());
+        wxString label = wxString::Format("%s %d",
+                                           DOW_SHORT[(int)d.GetWeekDay()], d.GetDay());
         dc.DrawLabel(label, hr, wxALIGN_CENTER);
 
         dc.SetPen(wxPen(WV_GRID, 1));
@@ -308,7 +316,7 @@ wxDateTime WeekView::SlotFromPoint(const wxPoint& pt, int timeColW, int colW,
 {
     if (pt.x < timeColW) return wxDateTime();
     int col = (pt.x - timeColW) / std::max(1, colW);
-    if (col < 0 || col > 6) return wxDateTime();
+    if (col < 0 || col >= span_) return wxDateTime();
 
     int minutes = pt.y - baseY;
     if (minutes < 0) return wxDateTime();
@@ -337,7 +345,7 @@ void WeekView::OnLeftDClick(wxMouseEvent& e)
 
     // Hit test time slots
     int sz  = GetVirtualSize().GetWidth();
-    int colW = std::max(1, (sz - TIME_COL_W) / 7);
+    int colW = std::max(1, (sz - TIME_COL_W) / span_);
     int baseY = HEADER_H + ALLDAY_H;
     wxDateTime slot = SlotFromPoint(upt, TIME_COL_W, colW, baseY);
     if (slot.IsValid()) {

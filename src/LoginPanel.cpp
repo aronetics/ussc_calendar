@@ -5,6 +5,7 @@
 #ifdef _WIN32
 #  include <windows.h>
 #  include <bcrypt.h>
+#  include <wx/stdpaths.h>
 #  include <vector>
 #else
 #  include <unistd.h>
@@ -31,9 +32,13 @@ LoginPanel::LoginPanel(wxWindow* parent)
     SetBackgroundColour(wxColour(248, 249, 250));
 
     // Credential store path
-    wxString home = wxGetHomeDir();
-    wxString dir  = home + "/.ussc_calendar";
+#ifdef _WIN32
+    wxString dir = wxStandardPaths::Get().GetUserDataDir();
+    wxMkdir(dir);
+#else
+    wxString dir = wxGetHomeDir() + "/.ussc_calendar";
     wxMkdir(dir, 0700);
+#endif
     usersPath_ = (dir + "/users.conf").ToStdString();
     LoadUsers();
 

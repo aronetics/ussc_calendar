@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 #include <wx/datetime.h>
 #include <wx/colour.h>
 
@@ -26,6 +27,8 @@ struct CalendarEvent {
     wxDateTime  end;
     bool        allDay = false;
     wxColour    color;
+    std::vector<std::string> participants;  // user IDs
+    std::string calendarSource;             // CalendarSource id (e.g. "us", "uk")
 
     CalendarEvent() : color(GCDefault()) {}
 

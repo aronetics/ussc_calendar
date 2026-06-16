@@ -2,6 +2,9 @@
 #include <wx/wx.h>
 #include <wx/datetime.h>
 #include "EventStore.h"
+#include "UserStore.h"
+#include "CalendarSourceStore.h"
+#include "CalendarConnector.h"
 #include <memory>
 #include <string>
 
@@ -10,8 +13,10 @@ class MonthView;
 class WeekView;
 class DayView;
 class LoginPanel;
+class UserPanel;
+class CalendarSourcePanel;
 
-enum class ViewMode { Month, Week, Day };
+enum class ViewMode { Month, Week, TwoWeek, Day };
 
 class CalendarFrame : public wxFrame {
 public:
@@ -44,8 +49,13 @@ private:
 
     // Menu / toolbar handlers
     void OnMenuNewEvent(wxCommandEvent&);
+    void OnMenuAccounts(wxCommandEvent&);
+    void OnMenuExportICS(wxCommandEvent&);
     void OnMenuQuit(wxCommandEvent&);
     void OnMenuAbout(wxCommandEvent&);
+
+    void LoadConnectorSettings();
+    void SaveConnectorSettings() const;
 
     // Keyboard
     void OnKeyDown(wxKeyEvent&);
@@ -53,10 +63,14 @@ private:
     // View mode buttons
     void OnBtnMonth(wxCommandEvent&);
     void OnBtnWeek(wxCommandEvent&);
+    void OnBtnTwoWeek(wxCommandEvent&);
     void OnBtnDay(wxCommandEvent&);
 
-    EventStore    store_;
-    ViewMode      viewMode_  = ViewMode::Month;
+    EventStore          store_;
+    UserStore           userStore_;
+    CalendarSourceStore sourceStore_;
+    ConnectorSettings   connectorSettings_;
+    ViewMode            viewMode_ = ViewMode::Month;
     wxDateTime    displayDate_;
 
     wxPanel*      headerPanel_   = nullptr;
@@ -72,12 +86,15 @@ private:
     MonthView*    monthView_ = nullptr;
     WeekView*     weekView_  = nullptr;
     DayView*      dayView_   = nullptr;
+    UserPanel*          userPanel_    = nullptr;
+    CalendarSourcePanel* srcPanel_    = nullptr;
 
     wxStaticText* headerLabel_ = nullptr;
 
-    wxButton* btnMonth_ = nullptr;
-    wxButton* btnWeek_  = nullptr;
-    wxButton* btnDay_   = nullptr;
+    wxButton* btnMonth_   = nullptr;
+    wxButton* btnWeek_    = nullptr;
+    wxButton* btnTwoWeek_ = nullptr;
+    wxButton* btnDay_     = nullptr;
 
     wxDECLARE_EVENT_TABLE();
 };
