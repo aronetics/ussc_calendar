@@ -88,6 +88,20 @@ static std::string ExtractJsonString(const std::string& json, const std::string&
     return JsonUnescape(val);
 }
 
+static int ExtractJsonInt(const std::string& json, const std::string& key, int def = 0)
+{
+    std::string search = "\"" + key + "\":";
+    size_t pos = json.find(search);
+    if (pos == std::string::npos) return def;
+    pos += search.size();
+    while (pos < json.size() && json[pos] == ' ') ++pos;
+    if (pos >= json.size() || !std::isdigit((unsigned char)json[pos])) return def;
+    int val = 0;
+    while (pos < json.size() && std::isdigit((unsigned char)json[pos]))
+        val = val * 10 + (json[pos++] - '0');
+    return val;
+}
+
 static bool ExtractJsonBool(const std::string& json, const std::string& key)
 {
     std::string search = "\"" + key + "\":";
@@ -149,31 +163,116 @@ static std::vector<std::string> SplitJsonObjects(const std::string& json)
 
 // ── CalendarEvent helpers ─────────────────────────────────────────────────────
 
+// Returns how many calendar days separate two midnight-normalised dates.
+// Uses seconds to avoid DST-induced off-by-one errors.
+static long DaysBetween(const wxDateTime& earlier, const wxDateTime& later)
+{
+    return (long)((later.GetTicks() - earlier.GetTicks() + 43200) / 86400);
+}
+
+// Checks whether `day` (midnight-normalised) is a valid occurrence start for ev.
+static bool IsOccurrenceDay(const CalendarEvent& ev, const wxDateTime& day)
+{
+    wxDateTime startDay(ev.start.GetDay(), ev.start.GetMonth(), ev.start.GetYear(), 0, 0, 0);
+    if (day < startDay) return false;
+
+    if (ev.recurrence.until.IsValid()) {
+        wxDateTime untilDay(ev.recurrence.until.GetDay(),
+                            ev.recurrence.until.GetMonth(),
+                            ev.recurrence.until.GetYear(), 0, 0, 0);
+        if (day > untilDay) return false;
+    }
+
+    int iv = ev.recurrence.interval > 0 ? ev.recurrence.interval : 1;
+    long diff = DaysBetween(startDay, day);
+    int occNum = 0;
+    bool hit   = false;
+
+    switch (ev.recurrence.freq) {
+        case RecurFreq::Daily:
+            hit    = (diff % iv == 0);
+            occNum = (int)(diff / iv) + 1;
+            break;
+        case RecurFreq::Weekly:
+            hit    = (diff % (iv * 7) == 0);
+            occNum = (int)(diff / (iv * 7)) + 1;
+            break;
+        case RecurFreq::Monthly: {
+            if (day.GetDay() != startDay.GetDay()) return false;
+            int months = (day.GetYear() - startDay.GetYear()) * 12
+                       + ((int)day.GetMonth() - (int)startDay.GetMonth());
+            hit    = (months >= 0 && months % iv == 0);
+            occNum = months / iv + 1;
+            break;
+        }
+        case RecurFreq::Yearly: {
+            if (day.GetDay()   != startDay.GetDay() ||
+                day.GetMonth() != startDay.GetMonth()) return false;
+            int years = day.GetYear() - startDay.GetYear();
+            hit    = (years >= 0 && years % iv == 0);
+            occNum = years / iv + 1;
+            break;
+        }
+        default:
+            return false;
+    }
+
+    if (!hit) return false;
+    if (ev.recurrence.count > 0 && occNum > ev.recurrence.count) return false;
+    return true;
+}
+
 bool CalendarEvent::OccursOnDate(const wxDateTime& d) const
 {
     if (!start.IsValid()) return false;
-    wxDateTime dayStart = wxDateTime(d.GetDay(), d.GetMonth(), d.GetYear(), 0, 0, 0);
-    wxDateTime dayEnd   = dayStart;
-    dayEnd.Add(wxTimeSpan::Day());
 
-    if (allDay) {
-        wxDateTime s = wxDateTime(start.GetDay(), start.GetMonth(), start.GetYear(), 0, 0, 0);
-        wxDateTime e = end.IsValid()
-                     ? wxDateTime(end.GetDay(), end.GetMonth(), end.GetYear(), 0, 0, 0)
-                     : s;
-        e.Add(wxTimeSpan::Day());  // inclusive end day
-        return s < dayEnd && e > dayStart;
+    wxDateTime day(d.GetDay(), d.GetMonth(), d.GetYear(), 0, 0, 0);
+
+    if (recurrence.freq == RecurFreq::None) {
+        // Original single-occurrence logic
+        wxDateTime dayEnd = day;
+        dayEnd.Add(wxTimeSpan::Day());
+        if (allDay) {
+            wxDateTime s(start.GetDay(), start.GetMonth(), start.GetYear(), 0, 0, 0);
+            wxDateTime e = end.IsValid()
+                         ? wxDateTime(end.GetDay(), end.GetMonth(), end.GetYear(), 0, 0, 0)
+                         : s;
+            e.Add(wxTimeSpan::Day());
+            return s < dayEnd && e > day;
+        }
+        wxDateTime e = end.IsValid() ? end : start;
+        return start < dayEnd && e > day;
     }
-    wxDateTime e = end.IsValid() ? end : start;
-    return start < dayEnd && e > dayStart;
+
+    // Recurring: how many extra days does one occurrence span?
+    wxDateTime startDay(start.GetDay(), start.GetMonth(), start.GetYear(), 0, 0, 0);
+    int spanDays = 0;
+    if (end.IsValid() && end > start) {
+        wxDateTime endDay(end.GetDay(), end.GetMonth(), end.GetYear(), 0, 0, 0);
+        long s = DaysBetween(startDay, endDay);
+        if (s > 0) spanDays = (int)s;
+    }
+
+    // Check if any occurrence starting in [day-spanDays, day] covers `day`
+    for (int i = 0; i <= spanDays; ++i) {
+        wxDateTime candidate = day;
+        candidate.Subtract(wxDateSpan::Days(i));
+        if (IsOccurrenceDay(*this, candidate))
+            return true;
+    }
+    return false;
 }
 
 bool CalendarEvent::StartsOnDate(const wxDateTime& d) const
 {
     if (!start.IsValid()) return false;
-    return start.GetDay()   == d.GetDay()   &&
-           start.GetMonth() == d.GetMonth() &&
-           start.GetYear()  == d.GetYear();
+    if (recurrence.freq == RecurFreq::None) {
+        return start.GetDay()   == d.GetDay()   &&
+               start.GetMonth() == d.GetMonth() &&
+               start.GetYear()  == d.GetYear();
+    }
+    wxDateTime day(d.GetDay(), d.GetMonth(), d.GetYear(), 0, 0, 0);
+    return IsOccurrenceDay(*this, day);
 }
 
 // ── EventStore ────────────────────────────────────────────────────────────────
@@ -246,6 +345,11 @@ void EventStore::Load()
         e.color        = HexToColour(ExtractJsonString(obj, "color"));
         e.participants    = ExtractJsonArray(obj, "participants");
         e.calendarSource  = ExtractJsonString(obj, "src");
+        e.recurrence.freq     = static_cast<RecurFreq>(ExtractJsonInt(obj, "rf", 0));
+        e.recurrence.interval = ExtractJsonInt(obj, "ri", 1);
+        e.recurrence.count    = ExtractJsonInt(obj, "rc", 0);
+        std::string ru = ExtractJsonString(obj, "ru");
+        if (!ru.empty()) e.recurrence.until = ParseDateTime(ru);
         if (!e.id.empty()) events_.push_back(e);
     }
 }
@@ -272,7 +376,16 @@ void EventStore::Save() const
             f << "\"" << JsonEscape(e.participants[j]) << "\"";
             if (j + 1 < e.participants.size()) f << ",";
         }
-        f << "],\"src\":\"" << JsonEscape(e.calendarSource) << "\"}";
+        f << "],\"src\":\"" << JsonEscape(e.calendarSource) << "\"";
+        if (e.recurrence.freq != RecurFreq::None) {
+            f << ",\"rf\":" << (int)e.recurrence.freq
+              << ",\"ri\":" << e.recurrence.interval;
+            if (e.recurrence.until.IsValid())
+                f << ",\"ru\":\"" << FormatDateTime(e.recurrence.until) << "\"";
+            if (e.recurrence.count > 0)
+                f << ",\"rc\":" << e.recurrence.count;
+        }
+        f << "}";
         if (i + 1 < events_.size()) f << ",";
         f << "\n";
     }

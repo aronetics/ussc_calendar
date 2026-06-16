@@ -4,6 +4,15 @@
 #include <wx/datetime.h>
 #include <wx/colour.h>
 
+enum class RecurFreq { None, Daily, Weekly, Monthly, Yearly };
+
+struct RecurrenceRule {
+    RecurFreq  freq     = RecurFreq::None;
+    int        interval = 1;     // every N periods
+    wxDateTime until;            // invalid = no end date
+    int        count    = 0;     // 0 = no count limit
+};
+
 // Google Calendar colour palette as inline functions (avoids static init issues)
 inline wxColour GCTomato()     { return wxColour(213,  0,  0);   }
 inline wxColour GCFlamingo()   { return wxColour(230,124,115);   }
@@ -29,6 +38,7 @@ struct CalendarEvent {
     wxColour    color;
     std::vector<std::string> participants;  // user IDs
     std::string calendarSource;             // CalendarSource id (e.g. "us", "uk")
+    RecurrenceRule recurrence;
 
     CalendarEvent() : color(GCDefault()) {}
 

@@ -3,19 +3,23 @@
 #include <wx/stattext.h>
 
 enum {
-    ID_ED_ALLDAY = wxID_HIGHEST + 300,
-    ID_COLOR_BASE        // IDs ID_COLOR_BASE+0..ID_COLOR_BASE+11 for color chips
+    ID_ED_ALLDAY     = wxID_HIGHEST + 300,
+    ID_COLOR_BASE,        // IDs ID_COLOR_BASE+0..ID_COLOR_BASE+11 for color chips
+    ID_ED_RECUR_FREQ = wxID_HIGHEST + 320,
+    ID_ED_RECUR_ENDS
 };
 
 wxBEGIN_EVENT_TABLE(EventDialog, wxDialog)
-    EVT_CHECKBOX(ID_ED_ALLDAY, EventDialog::OnAllDayToggle)
-    EVT_BUTTON(wxID_OK, EventDialog::OnOK)
+    EVT_CHECKBOX(ID_ED_ALLDAY,     EventDialog::OnAllDayToggle)
+    EVT_CHOICE(ID_ED_RECUR_FREQ,   EventDialog::OnRecurFreqChange)
+    EVT_CHOICE(ID_ED_RECUR_ENDS,   EventDialog::OnRecurEndsChange)
+    EVT_BUTTON(wxID_OK,            EventDialog::OnOK)
 wxEND_EVENT_TABLE()
 
 EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl,
                          UserStore* users, CalendarSourceStore* sources)
     : wxDialog(parent, wxID_ANY, tmpl.id.empty() ? "New Event" : "Edit Event",
-               wxDefaultPosition, wxSize(480, (users || sources) ? 720 : 560),
+               wxDefaultPosition, wxSize(480, (users || sources) ? 820 : 680),
                wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
       event_(tmpl),
       users_(users),
@@ -91,6 +95,105 @@ EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl,
     locCtrl_->SetHint("Add location");
     root->Add(locCtrl_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
 
+    // ── Recurrence ────────────────────────────────────────────────────────
+    root->Add(new wxStaticText(this, wxID_ANY, "Recurrence"),
+              0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
+
+    {
+        auto ordinal = [](int n) -> wxString {
+            if (n >= 11 && n <= 13) return wxString::Format("%dth", n);
+            switch (n % 10) {
+                case 1: return wxString::Format("%dst", n);
+                case 2: return wxString::Format("%dnd", n);
+                case 3: return wxString::Format("%drd", n);
+                default: return wxString::Format("%dth", n);
+            }
+        };
+
+        wxString wdayName = tmpl.start.IsValid() ? tmpl.start.Format("%A") : "day";
+        wxString monthDay = tmpl.start.IsValid() ? ordinal(tmpl.start.GetDay()) : "1st";
+        wxString yearDate;
+        if (tmpl.start.IsValid())
+            yearDate = wxString::Format("%s %d",
+                wxDateTime::GetMonthName(tmpl.start.GetMonth()),
+                (int)tmpl.start.GetDay());
+        else
+            yearDate = "this date";
+
+        wxArrayString freqChoices;
+        freqChoices.Add("Does not repeat");
+        freqChoices.Add("Daily");
+        freqChoices.Add(wxString::Format("Weekly on %s", wdayName));
+        freqChoices.Add(wxString::Format("Monthly on the %s", monthDay));
+        freqChoices.Add(wxString::Format("Annually on %s", yearDate));
+
+        recurFreq_ = new wxChoice(this, ID_ED_RECUR_FREQ,
+                                   wxDefaultPosition, wxDefaultSize, freqChoices);
+        int freqSel = 0;
+        switch (tmpl.recurrence.freq) {
+            case RecurFreq::Daily:   freqSel = 1; break;
+            case RecurFreq::Weekly:  freqSel = 2; break;
+            case RecurFreq::Monthly: freqSel = 3; break;
+            case RecurFreq::Yearly:  freqSel = 4; break;
+            default:                 freqSel = 0; break;
+        }
+        recurFreq_->SetSelection(freqSel);
+        root->Add(recurFreq_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
+
+        // Details panel — shown only when a frequency is selected
+        recurPanel_ = new wxPanel(this, wxID_ANY);
+        wxBoxSizer* rpSizer = new wxBoxSizer(wxVERTICAL);
+        recurPanel_->SetSizer(rpSizer);
+
+        // "Every N unit(s)" row
+        wxBoxSizer* everyRow = new wxBoxSizer(wxHORIZONTAL);
+        everyRow->Add(new wxStaticText(recurPanel_, wxID_ANY, "Every"),
+                      0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+        recurInterval_ = new wxSpinCtrl(recurPanel_, wxID_ANY,
+            wxString::Format("%d", std::max(1, tmpl.recurrence.interval)),
+            wxDefaultPosition, wxSize(60, -1));
+        recurInterval_->SetRange(1, 99);
+        everyRow->Add(recurInterval_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+        recurUnitLbl_ = new wxStaticText(recurPanel_, wxID_ANY, "day(s)");
+        everyRow->Add(recurUnitLbl_, 0, wxALIGN_CENTER_VERTICAL);
+        rpSizer->Add(everyRow, 0, wxBOTTOM, 8);
+
+        // "Ends" row
+        wxBoxSizer* endsRow = new wxBoxSizer(wxHORIZONTAL);
+        endsRow->Add(new wxStaticText(recurPanel_, wxID_ANY, "Ends"),
+                     0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+
+        wxArrayString endsChoices;
+        endsChoices.Add("Never");
+        endsChoices.Add("On date");
+        endsChoices.Add("After");
+        recurEnds_ = new wxChoice(recurPanel_, ID_ED_RECUR_ENDS,
+                                   wxDefaultPosition, wxDefaultSize, endsChoices);
+        int endsSel = 0;
+        if (tmpl.recurrence.count > 0)             endsSel = 2;
+        else if (tmpl.recurrence.until.IsValid())  endsSel = 1;
+        recurEnds_->SetSelection(endsSel);
+        endsRow->Add(recurEnds_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+
+        wxDateTime defaultUntil = wxDateTime::Today();
+        defaultUntil.Add(wxDateSpan::Year());
+        recurUntilPicker_ = new wxDatePickerCtrl(recurPanel_, wxID_ANY,
+            tmpl.recurrence.until.IsValid() ? tmpl.recurrence.until : defaultUntil);
+        endsRow->Add(recurUntilPicker_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+
+        recurCountCtrl_ = new wxSpinCtrl(recurPanel_, wxID_ANY,
+            wxString::Format("%d", tmpl.recurrence.count > 0 ? tmpl.recurrence.count : 10),
+            wxDefaultPosition, wxSize(60, -1));
+        recurCountCtrl_->SetRange(1, 999);
+        endsRow->Add(recurCountCtrl_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+
+        recurCountLbl_ = new wxStaticText(recurPanel_, wxID_ANY, "occurrences");
+        endsRow->Add(recurCountLbl_, 0, wxALIGN_CENTER_VERTICAL);
+
+        rpSizer->Add(endsRow, 0, wxEXPAND);
+        root->Add(recurPanel_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 12);
+    }
+
     // ── Color picker ──────────────────────────────────────────────────────
     root->Add(new wxStaticText(this, wxID_ANY, "Color"),
               0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
@@ -153,7 +256,8 @@ EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl,
     root->Add(btns, 0, wxEXPAND | wxALL, 12);
 
     UpdateTimeVisibility();
-    Layout();
+    UpdateRecurVisibility();
+    Fit();
     Centre();
 }
 
@@ -233,6 +337,36 @@ void EventDialog::OnAllDayToggle(wxCommandEvent&)
     UpdateTimeVisibility();
 }
 
+void EventDialog::UpdateRecurVisibility()
+{
+    if (!recurFreq_ || !recurPanel_) return;
+
+    int freq = recurFreq_->GetSelection();
+    recurPanel_->Show(freq > 0);
+
+    static const wxString units[] = { "", "day(s)", "week(s)", "month(s)", "year(s)" };
+    if (freq > 0 && freq <= 4)
+        recurUnitLbl_->SetLabel(units[freq]);
+
+    if (freq > 0) {
+        int ends = recurEnds_->GetSelection();
+        recurUntilPicker_->Show(ends == 1);
+        recurCountCtrl_->Show(ends == 2);
+        recurCountLbl_->Show(ends == 2);
+    }
+
+    // Grow the window if the sizer now needs more space; never shrink automatically.
+    Layout();
+    wxSize needed = GetSizer()->ComputeFittingWindowSize(this);
+    wxSize cur    = GetSize();
+    if (needed.GetHeight() > cur.GetHeight() || needed.GetWidth() > cur.GetWidth())
+        SetSize(wxSize(std::max(needed.GetWidth(),  cur.GetWidth()),
+                       std::max(needed.GetHeight(), cur.GetHeight())));
+}
+
+void EventDialog::OnRecurFreqChange(wxCommandEvent&) { UpdateRecurVisibility(); }
+void EventDialog::OnRecurEndsChange(wxCommandEvent&) { UpdateRecurVisibility(); }
+
 void EventDialog::OnColorChip(wxCommandEvent& e)
 {
     int idx = e.GetId() - ID_COLOR_BASE;
@@ -289,6 +423,25 @@ void EventDialog::OnOK(wxCommandEvent&)
     }
 
     if (event_.end < event_.start) event_.end = event_.start;
+
+    // Recurrence rule
+    RecurrenceRule& rr = event_.recurrence;
+    int freqSel = recurFreq_->GetSelection();
+    switch (freqSel) {
+        case 1: rr.freq = RecurFreq::Daily;   break;
+        case 2: rr.freq = RecurFreq::Weekly;  break;
+        case 3: rr.freq = RecurFreq::Monthly; break;
+        case 4: rr.freq = RecurFreq::Yearly;  break;
+        default: rr = RecurrenceRule{}; break;
+    }
+    if (rr.freq != RecurFreq::None) {
+        rr.interval = recurInterval_->GetValue();
+        rr.until    = wxDateTime();
+        rr.count    = 0;
+        int endsSel = recurEnds_->GetSelection();
+        if (endsSel == 1) rr.until = recurUntilPicker_->GetValue();
+        if (endsSel == 2) rr.count = recurCountCtrl_->GetValue();
+    }
 
     EndModal(wxID_OK);
 }
