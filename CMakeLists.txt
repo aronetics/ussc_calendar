@@ -55,6 +55,8 @@ target_link_libraries(ussc_calendar PRIVATE ${wxWidgets_LIBRARIES})
 
 if(WIN32)
     target_link_libraries(ussc_calendar PRIVATE bcrypt ole32 oleaut32 winhttp)
+    # The .rc file embeds our manifest; suppress the linker's auto-generated one
+    target_link_options(ussc_calendar PRIVATE /MANIFEST:NO)
 endif()
 
 install(TARGETS ussc_calendar DESTINATION bin)

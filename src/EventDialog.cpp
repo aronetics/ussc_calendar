@@ -236,7 +236,7 @@ EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl,
 
     // ── Participants ──────────────────────────────────────────────────────
     if (users_) {
-        root->Add(new wxStaticText(this, wxID_ANY, "Participants (select 3\xe2\x80\x934):"),
+        root->Add(new wxStaticText(this, wxID_ANY, "Participants (select 3\xe2\x80\x93" "4):"),
                   0, wxLEFT | wxRIGHT | wxBOTTOM, 4);
         wxScrolledWindow* pscroll = new wxScrolledWindow(this, wxID_ANY,
             wxDefaultPosition, wxSize(-1, 130),
