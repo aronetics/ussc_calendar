@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3F8A1B2C-4D5E-4F60-A7B8-C9D0E1F23456}</ProjectGuid>
+    <RootNamespace>ussc_calendar</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <VcpkgEnabled>false</VcpkgEnabled>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+
+  <PropertyGroup>
+    <!-- Override by setting VCPKG_ROOT env var or passing /p:VcpkgRoot=C:\path\to\vcpkg to msbuild -->
+    <VcpkgRoot Condition="'$(VCPKG_ROOT)' != ''">$(VCPKG_ROOT)</VcpkgRoot>
+    <VcpkgRoot Condition="'$(VcpkgRoot)' == ''">C:\vcpkg</VcpkgRoot>
+    <!-- Override at CI time: msbuild /p:AppVersion=1.2.3 -->
+    <AppVersion Condition="'$(AppVersion)' == ''">dev</AppVersion>
+    <OutDir>$(ProjectDir)out\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Configuration)\</IntDir>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/external:I "$(VcpkgRoot)\installed\x64-windows\lib\mswu" /external:I "$(VcpkgRoot)\installed\x64-windows\include" %(AdditionalOptions)</AdditionalOptions>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;UNICODE;_UNICODE;APP_VERSION="$(AppVersion)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(VcpkgRoot)\installed\x64-windows\lib\mswu;$(VcpkgRoot)\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(VcpkgRoot)\installed\x64-windows\debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>wxmsw33ud_core.lib;wxbase33ud.lib;gdiplus.lib;msimg32.lib;winmm.lib;comctl32.lib;uuid.lib;oleacc.lib;uxtheme.lib;rpcrt4.lib;shlwapi.lib;version.lib;wsock32.lib;bcrypt.lib;ole32.lib;oleaut32.lib;winhttp.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;comdlg32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Message>Copying vcpkg runtime DLLs</Message>
+      <Command>powershell -noprofile -executionpolicy Bypass -file "$(VcpkgRoot)\scripts\buildsystems\msbuild\applocal.ps1" -targetBinary "$(OutDir)$(TargetFileName)" -installedDir "$(VcpkgRoot)\installed\x64-windows\debug\bin"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalOptions>/external:I "$(VcpkgRoot)\installed\x64-windows\lib\mswu" /external:I "$(VcpkgRoot)\installed\x64-windows\include" %(AdditionalOptions)</AdditionalOptions>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;APP_VERSION="$(AppVersion)";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src;$(VcpkgRoot)\installed\x64-windows\lib\mswu;$(VcpkgRoot)\installed\x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(VcpkgRoot)\installed\x64-windows\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>wxmsw33u_core.lib;wxbase33u.lib;gdiplus.lib;msimg32.lib;winmm.lib;comctl32.lib;uuid.lib;oleacc.lib;uxtheme.lib;rpcrt4.lib;shlwapi.lib;version.lib;wsock32.lib;bcrypt.lib;ole32.lib;oleaut32.lib;winhttp.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;comdlg32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Message>Copying vcpkg runtime DLLs</Message>
+      <Command>powershell -noprofile -executionpolicy Bypass -file "$(VcpkgRoot)\scripts\buildsystems\msbuild\applocal.ps1" -targetBinary "$(OutDir)$(TargetFileName)" -installedDir "$(VcpkgRoot)\installed\x64-windows\bin"</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="src\CalendarConnector.cpp" />
+    <ClCompile Include="src\CalendarFrame.cpp" />
+    <ClCompile Include="src\CalendarSourcePanel.cpp" />
+    <ClCompile Include="src\CalendarSourceStore.cpp" />
+    <ClCompile Include="src\ConnectorDialog.cpp" />
+    <ClCompile Include="src\DayView.cpp" />
+    <ClCompile Include="src\EventDialog.cpp" />
+    <ClCompile Include="src\EventStore.cpp" />
+    <ClCompile Include="src\EwsConnector.cpp" />
+    <ClCompile Include="src\GraphApiConnector.cpp" />
+    <ClCompile Include="src\IcsConnector.cpp" />
+    <ClCompile Include="src\LoginPanel.cpp" />
+    <ClCompile Include="src\MiniCalendar.cpp" />
+    <ClCompile Include="src\MonthView.cpp" />
+    <ClCompile Include="src\OutlookComConnector.cpp" />
+    <ClCompile Include="src\UserPanel.cpp" />
+    <ClCompile Include="src\UserStore.cpp" />
+    <ClCompile Include="src\WeekView.cpp" />
+    <ClCompile Include="src\main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\CalendarConnector.h" />
+    <ClInclude Include="src\CalendarEvent.h" />
+    <ClInclude Include="src\CalendarFrame.h" />
+    <ClInclude Include="src\CalendarSourcePanel.h" />
+    <ClInclude Include="src\CalendarSourceStore.h" />
+    <ClInclude Include="src\ConnectorDialog.h" />
+    <ClInclude Include="src\DayView.h" />
+    <ClInclude Include="src\EventDialog.h" />
+    <ClInclude Include="src\EventStore.h" />
+    <ClInclude Include="src\EwsConnector.h" />
+    <ClInclude Include="src\GraphApiConnector.h" />
+    <ClInclude Include="src\IcsConnector.h" />
+    <ClInclude Include="src\LoginPanel.h" />
+    <ClInclude Include="src\MiniCalendar.h" />
+    <ClInclude Include="src\MonthView.h" />
+    <ClInclude Include="src\OutlookComConnector.h" />
+    <ClInclude Include="src\UserPanel.h" />
+    <ClInclude Include="src\UserStore.h" />
+    <ClInclude Include="src\WeekView.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ussc_calendar.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ussc_calendar.manifest" />
+    <None Include="CMakeLists.txt" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
