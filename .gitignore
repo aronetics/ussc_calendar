@@ -1,6 +1,8 @@
 obj/
 bin/
 build/
+out/
+.vs/
 *.o
 *.a
 *.so
