@@ -82,7 +82,8 @@ private:
     wxStaticText* userLabel_  = nullptr;     // shows "Signed in as …" in header
     std::string   activeUser_;
 
-    MiniCalendar* miniCal_   = nullptr;
+    MiniCalendar* miniCal_          = nullptr;
+    wxButton*     sidebarActionBtn_ = nullptr;
     MonthView*    monthView_ = nullptr;
     WeekView*     weekView_  = nullptr;
     DayView*      dayView_   = nullptr;

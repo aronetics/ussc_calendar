@@ -34,7 +34,7 @@ LoginPanel::LoginPanel(wxWindow* parent)
     // Credential store path
 #ifdef _WIN32
     wxString dir = wxStandardPaths::Get().GetUserDataDir();
-    wxMkdir(dir);
+    if (!wxDirExists(dir)) wxMkdir(dir);
 #else
     wxString dir = wxGetHomeDir() + "/.ussc_calendar";
     wxMkdir(dir, 0700);

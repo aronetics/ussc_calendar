@@ -224,7 +224,7 @@ wxPanel* CalendarFrame::BuildHeader()
 
 wxPanel* CalendarFrame::BuildSidebar()
 {
-    wxPanel* sb = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(220, -1));
+    wxPanel* sb = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(310, -1));
     sb->SetBackgroundColour(wxColour(248, 249, 250));
     sidebarPanel_ = sb;   // set early so BuildCalSidebar() can use it as parent
 
@@ -262,12 +262,20 @@ wxPanel* CalendarFrame::BuildCalSidebar()
     newBtn->SetForegroundColour(*wxWHITE);
     vbox->Add(newBtn, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP | wxBOTTOM, 12);
 
-    // MiniCalendar
+    // MiniCalendar + action button side by side
     miniCal_ = new MiniCalendar(cs, &store_);
     miniCal_->OnDateSelected = [this](const wxDateTime& d) {
         SetDisplayDate(d);
     };
-    vbox->Add(miniCal_, 0, wxEXPAND | wxLEFT | wxRIGHT, 4);
+
+    sidebarActionBtn_ = new wxButton(cs, wxID_ANY, "",
+                                     wxDefaultPosition, wxSize(80, 50));
+
+    wxBoxSizer* calRow = new wxBoxSizer(wxHORIZONTAL);
+    calRow->Add(miniCal_, 1, wxEXPAND);
+    calRow->Add(sidebarActionBtn_, 0, wxALIGN_TOP | wxLEFT, 4);
+
+    vbox->Add(calRow, 0, wxEXPAND | wxLEFT | wxRIGHT, 4);
 
     // Separator
     wxPanel* sep = new wxPanel(cs, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
