@@ -10,6 +10,7 @@
 #include "ConnectorDialog.h"
 #include "IcsConnector.h"
 #include "NLEventDialog.h"
+#include "SatellitePanel.h"
 #ifdef _WIN32
 #  include <wx/stdpaths.h>
 #endif
@@ -113,11 +114,20 @@ CalendarFrame::CalendarFrame()
     viewContainer_ = BuildViewArea();
     bodyHBox->Add(viewContainer_, 1, wxEXPAND);
 
+    // Right separator + satellite panel
+    wxPanel* sepR = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(1, -1));
+    sepR->SetBackgroundColour(wxColour(0xDA, 0xDC, 0xE0));
+    bodyHBox->Add(sepR, 0, wxEXPAND);
+
+    satPanel_ = BuildSatellitePanel();
+    bodyHBox->Add(satPanel_, 0, wxEXPAND);
+
     // (store_.Load() and userStore_.Load() called at top of constructor)
     displayDate_ = wxDateTime::Today();
 
-    // Hide calendar area until the user authenticates
+    // Hide calendar area and satellite panel until the user authenticates
     viewContainer_->Show(false);
+    satPanel_->Show(false);
 
     SetViewMode(ViewMode::Month);
     SetDisplayDate(displayDate_);
@@ -316,6 +326,7 @@ void CalendarFrame::OnLoginSuccess(const std::string& username)
     sidebarPanel_->Layout();
 
     viewContainer_->Show(true);
+    satPanel_->Show(true);
     GetSizer()->Layout();
 
     if (userLabel_) {
@@ -374,6 +385,13 @@ wxPanel* CalendarFrame::BuildViewArea()
     dayView_->Show(false);
 
     return area;
+}
+
+// ── Satellite panel ───────────────────────────────────────────────────────────
+
+SatellitePanel* CalendarFrame::BuildSatellitePanel()
+{
+    return new SatellitePanel(this, &satStore_);
 }
 
 // ── View toggle helpers ───────────────────────────────────────────────────────

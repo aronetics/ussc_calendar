@@ -135,6 +135,8 @@
     <ClCompile Include="src\MiniCalendar.cpp" />
     <ClCompile Include="src\MonthView.cpp" />
     <ClCompile Include="src\NLEventDialog.cpp" />
+    <ClCompile Include="src\SatellitePanel.cpp" />
+    <ClCompile Include="src\SatelliteStore.cpp" />
     <ClCompile Include="src\OutlookComConnector.cpp" />
     <ClCompile Include="src\UserPanel.cpp" />
     <ClCompile Include="src\UserStore.cpp" />
@@ -158,6 +160,8 @@
     <ClInclude Include="src\MiniCalendar.h" />
     <ClInclude Include="src\MonthView.h" />
     <ClInclude Include="src\NLEventDialog.h" />
+    <ClInclude Include="src\SatellitePanel.h" />
+    <ClInclude Include="src\SatelliteStore.h" />
     <ClInclude Include="src\OutlookComConnector.h" />
     <ClInclude Include="src\UserPanel.h" />
     <ClInclude Include="src\UserStore.h" />

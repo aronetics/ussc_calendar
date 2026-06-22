@@ -5,6 +5,7 @@
 #include "UserStore.h"
 #include "CalendarSourceStore.h"
 #include "CalendarConnector.h"
+#include "SatelliteStore.h"
 #include <memory>
 #include <string>
 
@@ -15,6 +16,7 @@ class DayView;
 class LoginPanel;
 class UserPanel;
 class CalendarSourcePanel;
+class SatellitePanel;
 
 enum class ViewMode { Month, Week, TwoWeek, Day };
 
@@ -29,6 +31,7 @@ private:
     wxPanel* BuildSidebar();   // contains loginPanel_ + calSidebar_ stacked
     wxPanel* BuildCalSidebar();
     wxPanel* BuildViewArea();
+    SatellitePanel* BuildSatellitePanel();
 
     // Login
     void OnLoginSuccess(const std::string& username);
@@ -72,6 +75,7 @@ private:
     UserStore           userStore_;
     CalendarSourceStore sourceStore_;
     ConnectorSettings   connectorSettings_;
+    SatelliteStore      satStore_;
     ViewMode            viewMode_ = ViewMode::Month;
     wxDateTime    displayDate_;
 
@@ -91,6 +95,7 @@ private:
     DayView*      dayView_   = nullptr;
     UserPanel*          userPanel_    = nullptr;
     CalendarSourcePanel* srcPanel_    = nullptr;
+    SatellitePanel*     satPanel_     = nullptr;
 
     wxStaticText* headerLabel_ = nullptr;
 

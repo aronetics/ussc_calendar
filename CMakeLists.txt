@@ -37,6 +37,8 @@ set(SOURCES
     src/MiniCalendar.cpp
     src/MonthView.cpp
     src/NLEventDialog.cpp
+    src/SatellitePanel.cpp
+    src/SatelliteStore.cpp
     src/OutlookComConnector.cpp
     src/UserPanel.cpp
     src/UserStore.cpp
