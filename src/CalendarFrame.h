@@ -33,8 +33,9 @@ private:
     wxPanel* BuildViewArea();
     SatellitePanel* BuildSatellitePanel();
 
-    // Login
+    // Login / logout
     void OnLoginSuccess(const std::string& username);
+    void OnLogout(wxCommandEvent&);
 
     // Navigation & view switching
     void NavigatePrev(wxCommandEvent&);
@@ -85,7 +86,8 @@ private:
     wxPanel*      calSidebar_    = nullptr;  // mini-cal + my-cals (shown after auth)
     wxPanel*      viewContainer_ = nullptr;
 
-    wxStaticText* userLabel_  = nullptr;     // shows "Signed in as …" in header
+    wxStaticText* userLabel_   = nullptr;     // shows "Signed in as …" in header
+    wxButton*     logoutBtn_   = nullptr;
     std::string   activeUser_;
 
     MiniCalendar* miniCal_          = nullptr;

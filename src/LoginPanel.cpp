@@ -277,3 +277,9 @@ void LoginPanel::ClearError()
 {
     errorLabel_->SetLabel(wxEmptyString);
 }
+
+void LoginPanel::Reset()
+{
+    passCtrl_->Clear();
+    ClearError();
+}

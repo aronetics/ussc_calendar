@@ -249,11 +249,19 @@ EventDialog::EventDialog(wxWindow* parent, const CalendarEvent& tmpl,
     }
 
     // ── Buttons ───────────────────────────────────────────────────────────
-    wxStdDialogButtonSizer* btns = new wxStdDialogButtonSizer();
-    btns->AddButton(new wxButton(this, wxID_OK,     "Save"));
-    btns->AddButton(new wxButton(this, wxID_CANCEL, "Cancel"));
-    btns->Realize();
-    root->Add(btns, 0, wxEXPAND | wxALL, 12);
+    wxBoxSizer* btnRow = new wxBoxSizer(wxHORIZONTAL);
+
+    if (!tmpl.id.empty()) {
+        auto* del = new wxButton(this, wxID_DELETE, "Delete");
+        del->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { EndModal(wxID_DELETE); });
+        btnRow->Add(del, 0, wxALIGN_CENTER_VERTICAL);
+    }
+
+    btnRow->AddStretchSpacer(1);
+    btnRow->Add(new wxButton(this, wxID_CANCEL, "Cancel"), 0,
+                wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+    btnRow->Add(new wxButton(this, wxID_OK, "Save"), 0, wxALIGN_CENTER_VERTICAL);
+    root->Add(btnRow, 0, wxEXPAND | wxALL, 12);
 
     UpdateTimeVisibility();
     UpdateRecurVisibility();

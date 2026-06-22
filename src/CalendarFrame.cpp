@@ -36,6 +36,7 @@ enum {
     ID_BTN_NEW_FAB,
     ID_BTN_SIDEBAR_NEW,
     ID_BTN_NL_ADD,
+    ID_BTN_LOGOUT,
     ID_MENU_NEW_EVENT,
     ID_MENU_QUIT,
     ID_MENU_ABOUT
@@ -57,6 +58,7 @@ wxBEGIN_EVENT_TABLE(CalendarFrame, wxFrame)
     EVT_MENU(ID_MENU_QUIT,         CalendarFrame::OnMenuQuit)
     EVT_MENU(ID_MENU_ABOUT,        CalendarFrame::OnMenuAbout)
     EVT_BUTTON(ID_BTN_NL_ADD,      CalendarFrame::OnNLAdd)
+    EVT_BUTTON(ID_BTN_LOGOUT,      CalendarFrame::OnLogout)
     EVT_KEY_DOWN(CalendarFrame::OnKeyDown)
 wxEND_EVENT_TABLE()
 
@@ -147,7 +149,6 @@ wxPanel* CalendarFrame::BuildHeader()
     hdr->SetBackgroundColour(*wxWHITE);
 
     wxBoxSizer* hbox = new wxBoxSizer(wxHORIZONTAL);
-    hdr->SetSizer(hbox);
 
     // ── Left side ─────────────────────────────────────────────────────────
 
@@ -199,7 +200,13 @@ wxPanel* CalendarFrame::BuildHeader()
     userLabel_->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_SWISS)));
     userLabel_->SetForegroundColour(wxColour(95, 99, 104));
     userLabel_->Show(false);
-    hbox->Add(userLabel_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
+    hbox->Add(userLabel_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 8);
+
+    logoutBtn_ = new wxButton(hdr, ID_BTN_LOGOUT, "Sign out",
+                              wxDefaultPosition, wxSize(-1, 28), wxBORDER_SIMPLE);
+    logoutBtn_->SetFont(wxFont(wxFontInfo(9).Family(wxFONTFAMILY_SWISS)));
+    logoutBtn_->Show(false);
+    hbox->Add(logoutBtn_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
 
     // ── Right side: view toggle buttons ───────────────────────────────────
     auto makeToggle = [&](int id, const wxString& label) -> wxButton* {
@@ -343,10 +350,31 @@ void CalendarFrame::OnLoginSuccess(const std::string& username)
         userLabel_->SetLabel(wxString::Format("Signed in as %s",
                                               wxString::FromUTF8(username)));
         userLabel_->Show(true);
+        logoutBtn_->Show(true);
         headerPanel_->GetSizer()->Layout();
     }
 
     SetDisplayDate(displayDate_);
+}
+
+void CalendarFrame::OnLogout(wxCommandEvent&)
+{
+    activeUser_.clear();
+
+    viewContainer_->Show(false);
+    satPanel_->Show(false);
+    calSidebar_->Show(false);
+    sidebarPanel_->Layout();
+    GetSizer()->Layout();
+
+    userLabel_->SetLabel(wxEmptyString);
+    userLabel_->Show(false);
+    logoutBtn_->Show(false);
+    headerPanel_->GetSizer()->Layout();
+
+    loginPanel_->Reset();
+    loginPanel_->Show(true);
+    sidebarPanel_->Layout();
 }
 
 // ── View area ─────────────────────────────────────────────────────────────────
@@ -586,10 +614,15 @@ void CalendarFrame::EditEvent(const std::string& id)
     if (!found) return;
 
     EventDialog dlg(this, *found, &userStore_, &sourceStore_);
-    if (dlg.ShowModal() == wxID_OK) {
+    int rc = dlg.ShowModal();
+    if (rc == wxID_OK) {
         CalendarEvent updated = dlg.GetEvent();
         updated.id = id;
         store_.Update(updated);
+        RefreshAllViews();
+        if (miniCal_) miniCal_->Refresh();
+    } else if (rc == wxID_DELETE) {
+        store_.Remove(id);
         RefreshAllViews();
         if (miniCal_) miniCal_->Refresh();
     }

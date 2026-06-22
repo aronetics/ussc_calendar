@@ -13,6 +13,8 @@ public:
 
     std::function<void(const std::string& username)> OnLoginSuccess;
 
+    void Reset();   // clear password and error; called on logout
+
 private:
     // UI events
     void OnSignIn(wxCommandEvent&);
