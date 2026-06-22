@@ -68,12 +68,6 @@ CalendarFrame::CalendarFrame()
 {
     SetMinSize(wxSize(800, 600));
 
-    // Load data before building widgets that reference the stores
-    store_.Load();
-    userStore_.Load();
-    sourceStore_.LoadVisibility();
-    LoadConnectorSettings();
-
     // ── Menu ─────────────────────────────────────────────────────────────
     wxMenuBar* mb = new wxMenuBar();
 
@@ -122,7 +116,6 @@ CalendarFrame::CalendarFrame()
     satPanel_ = BuildSatellitePanel();
     bodyHBox->Add(satPanel_, 0, wxEXPAND);
 
-    // (store_.Load() and userStore_.Load() called at top of constructor)
     displayDate_ = wxDateTime::Today();
 
     // Hide calendar area and satellite panel until the user authenticates
@@ -133,6 +126,17 @@ CalendarFrame::CalendarFrame()
     SetDisplayDate(displayDate_);
 
     Centre();
+
+    // Defer all disk I/O until after the first frame is painted so the
+    // login panel appears immediately rather than blocking on file reads.
+    CallAfter([this]() {
+        store_.Load();
+        userStore_.Load();
+        sourceStore_.LoadVisibility();
+        LoadConnectorSettings();
+        satStore_.Load();
+        satPanel_->Reload();
+    });
 }
 
 CalendarFrame::~CalendarFrame() {}

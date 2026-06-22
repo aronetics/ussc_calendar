@@ -285,7 +285,6 @@ SatellitePanel::SatellitePanel(wxWindow* parent, SatelliteStore* store)
 
     vbox->Add(scroll_, 1, wxEXPAND);
 
-    store_->Load();
     BuildRows();
 }
 
