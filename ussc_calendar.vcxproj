@@ -176,6 +176,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="ussc_calendar.manifest" />
+    <None Include="app.ico" />
     <None Include="CMakeLists.txt" />
   </ItemGroup>
 

@@ -69,6 +69,7 @@ CalendarFrame::CalendarFrame()
               wxDefaultPosition, wxSize(1280, 800))
 {
     SetMinSize(wxSize(800, 600));
+    SetIcon(wxIcon(wxT("#1"), wxBITMAP_TYPE_ICO_RESOURCE));
 
     // ── Menu ─────────────────────────────────────────────────────────────
     wxMenuBar* mb = new wxMenuBar();

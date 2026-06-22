@@ -1,5 +1,8 @@
 // ussc_calendar.rc  — Windows resource script
 #include <windows.h>
 
+// Application icon (numeric ID 1 → Windows uses as the exe/taskbar icon)
+1 ICON "app.ico"
+
 // Application manifest (DPI awareness, visual styles, OS compatibility)
 1 RT_MANIFEST "ussc_calendar.manifest"
