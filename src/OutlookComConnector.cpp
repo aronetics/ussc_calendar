@@ -240,7 +240,7 @@ std::vector<CalendarEvent> OutlookComConnector::FetchEvents(
     return results;
 }
 
-std::string OutlookComConnector::PushEvent(const CalendarEvent& ev,
+std::string OutlookComConnector::PushEvent(const CalendarEvent& /*ev*/,
                                             std::string& errorMsg)
 {
     errorMsg = "Push to Outlook via COM: not yet implemented.";
