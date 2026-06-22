@@ -54,6 +54,8 @@ private:
     void OnMenuQuit(wxCommandEvent&);
     void OnMenuAbout(wxCommandEvent&);
 
+    void OnNLAdd(wxCommandEvent&);
+
     void LoadConnectorSettings();
     void SaveConnectorSettings() const;
 

@@ -133,8 +133,8 @@
     <ClCompile Include="src\IcsConnector.cpp" />
     <ClCompile Include="src\LoginPanel.cpp" />
     <ClCompile Include="src\MiniCalendar.cpp" />
-    <ClCompile Include="src\NLEventDialog.cpp" />
     <ClCompile Include="src\MonthView.cpp" />
+    <ClCompile Include="src\NLEventDialog.cpp" />
     <ClCompile Include="src\OutlookComConnector.cpp" />
     <ClCompile Include="src\UserPanel.cpp" />
     <ClCompile Include="src\UserStore.cpp" />
@@ -156,8 +156,8 @@
     <ClInclude Include="src\IcsConnector.h" />
     <ClInclude Include="src\LoginPanel.h" />
     <ClInclude Include="src\MiniCalendar.h" />
-    <ClInclude Include="src\NLEventDialog.h" />
     <ClInclude Include="src\MonthView.h" />
+    <ClInclude Include="src\NLEventDialog.h" />
     <ClInclude Include="src\OutlookComConnector.h" />
     <ClInclude Include="src\UserPanel.h" />
     <ClInclude Include="src\UserStore.h" />

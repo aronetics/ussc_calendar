@@ -9,6 +9,7 @@
 #include "CalendarSourcePanel.h"
 #include "ConnectorDialog.h"
 #include "IcsConnector.h"
+#include "NLEventDialog.h"
 #ifdef _WIN32
 #  include <wx/stdpaths.h>
 #endif
@@ -33,6 +34,7 @@ enum {
     ID_BTN_DAY,
     ID_BTN_NEW_FAB,
     ID_BTN_SIDEBAR_NEW,
+    ID_BTN_NL_ADD,
     ID_MENU_NEW_EVENT,
     ID_MENU_QUIT,
     ID_MENU_ABOUT
@@ -53,6 +55,7 @@ wxBEGIN_EVENT_TABLE(CalendarFrame, wxFrame)
     EVT_MENU(ID_MENU_EXPORT_ICS,   CalendarFrame::OnMenuExportICS)
     EVT_MENU(ID_MENU_QUIT,         CalendarFrame::OnMenuQuit)
     EVT_MENU(ID_MENU_ABOUT,        CalendarFrame::OnMenuAbout)
+    EVT_BUTTON(ID_BTN_NL_ADD,      CalendarFrame::OnNLAdd)
     EVT_KEY_DOWN(CalendarFrame::OnKeyDown)
 wxEND_EVENT_TABLE()
 
@@ -268,8 +271,10 @@ wxPanel* CalendarFrame::BuildCalSidebar()
         SetDisplayDate(d);
     };
 
-    sidebarActionBtn_ = new wxButton(cs, wxID_ANY, "",
+    sidebarActionBtn_ = new wxButton(cs, ID_BTN_NL_ADD, "Quick Add",
                                      wxDefaultPosition, wxSize(80, 50));
+    sidebarActionBtn_->SetFont(wxFont(wxFontInfo(9).Family(wxFONTFAMILY_SWISS)));
+    sidebarActionBtn_->SetToolTip("Describe events in plain language");
 
     wxBoxSizer* calRow = new wxBoxSizer(wxHORIZONTAL);
     calRow->Add(miniCal_, 1, wxEXPAND);
@@ -570,6 +575,17 @@ void CalendarFrame::RefreshAllViews()
 }
 
 // ── Menu handlers ─────────────────────────────────────────────────────────────
+
+void CalendarFrame::OnNLAdd(wxCommandEvent&)
+{
+    NLEventDialog dlg(this, &userStore_);
+    if (dlg.ShowModal() == wxID_OK) {
+        for (const auto& ev : dlg.GetEvents())
+            store_.Add(ev);
+        RefreshAllViews();
+        if (miniCal_) miniCal_->Refresh();
+    }
+}
 
 void CalendarFrame::OnMenuQuit(wxCommandEvent&)
 {
