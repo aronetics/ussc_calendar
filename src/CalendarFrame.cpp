@@ -127,15 +127,13 @@ CalendarFrame::CalendarFrame()
 
     Centre();
 
-    // Defer all disk I/O until after the first frame is painted so the
-    // login panel appears immediately rather than blocking on file reads.
+    // Defer file I/O until after the first frame is painted so the login
+    // panel appears immediately. No widget creation here — only data loads.
     CallAfter([this]() {
         store_.Load();
         userStore_.Load();
         sourceStore_.LoadVisibility();
         LoadConnectorSettings();
-        satStore_.Load();
-        satPanel_->Reload();
     });
 }
 
@@ -324,6 +322,14 @@ wxPanel* CalendarFrame::BuildCalSidebar()
 void CalendarFrame::OnLoginSuccess(const std::string& username)
 {
     activeUser_ = username;
+
+    // Load satellite data now (panel was built empty; hidden until this point).
+    satStore_.Load();
+    satPanel_->Reload();
+
+    // Rebuild sidebar panels with freshly loaded user/source data.
+    userPanel_->Rebuild();
+    srcPanel_->Rebuild();
 
     loginPanel_->Show(false);
     calSidebar_->Show(true);
