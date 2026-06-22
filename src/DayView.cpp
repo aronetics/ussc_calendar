@@ -8,6 +8,7 @@ enum { ID_DAY_TIMER = wxID_HIGHEST + 600 };
 wxBEGIN_EVENT_TABLE(DayView, wxScrolledWindow)
     EVT_PAINT(DayView::OnPaint)
     EVT_LEFT_DCLICK(DayView::OnLeftDClick)
+    EVT_MOTION(DayView::OnMotion)
     EVT_TIMER(ID_DAY_TIMER, DayView::OnTimer)
     EVT_SIZE(DayView::OnSize)
 wxEND_EVENT_TABLE()
@@ -19,10 +20,11 @@ static const wxColour DV_TIME_FG (0x70, 0x75, 0x7A);
 static const wxColour DV_HDR_BG  (0xF8, 0xF9, 0xFA);
 static const wxColour DV_BLUE    (0x1A, 0x73, 0xE8);
 
-DayView::DayView(wxWindow* parent, EventStore* store)
+DayView::DayView(wxWindow* parent, EventStore* store, UserStore* users)
     : wxScrolledWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                        wxVSCROLL | wxHSCROLL),
       store_(store),
+      users_(users),
       timer_(this, ID_DAY_TIMER)
 {
     today_ = wxDateTime::Today();
@@ -168,7 +170,7 @@ void DayView::DrawEvents(wxDC& dc, int x, int y, int w)
 
         wxRect er(x + 2, ey, w - 4, eh);
 
-        ERect rec; rec.rect = er; rec.id = ep->id;
+        ERect rec; rec.rect = er; rec.id = ep->id; rec.participants = ep->participants;
         eRects_.push_back(rec);
 
         dc.SetBrush(wxBrush(ep->color));
@@ -226,6 +228,27 @@ void DayView::OnPaint(wxPaintEvent&)
     if (isToday) {
         DrawCurrentTimeLine(dc, TIME_COL_W, vw - TIME_COL_W, bodyY);
     }
+}
+
+void DayView::OnMotion(wxMouseEvent& e)
+{
+    e.Skip();
+    int ux, uy;
+    CalcUnscrolledPosition(e.GetX(), e.GetY(), &ux, &uy);
+    wxPoint upt(ux, uy);
+    for (const auto& er : eRects_) {
+        if (!er.rect.Contains(upt)) continue;
+        if (er.participants.empty()) { SetToolTip(wxEmptyString); return; }
+        wxString tip;
+        for (const auto& pid : er.participants) {
+            const UserEntry* u = users_ ? users_->FindUser(pid) : nullptr;
+            if (!tip.IsEmpty()) tip += "\n";
+            tip += u ? wxString::FromUTF8(u->name) : wxString::FromUTF8(pid);
+        }
+        SetToolTip(tip);
+        return;
+    }
+    SetToolTip(wxEmptyString);
 }
 
 void DayView::OnLeftDClick(wxMouseEvent& e)

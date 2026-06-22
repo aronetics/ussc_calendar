@@ -387,9 +387,9 @@ wxPanel* CalendarFrame::BuildViewArea()
     wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
     area->SetSizer(vbox);
 
-    monthView_ = new MonthView(area, &store_);
-    weekView_  = new WeekView(area, &store_);
-    dayView_   = new DayView(area, &store_);
+    monthView_ = new MonthView(area, &store_, &userStore_);
+    weekView_  = new WeekView(area, &store_, &userStore_);
+    dayView_   = new DayView(area, &store_, &userStore_);
 
     // Wire callbacks
     monthView_->OnDayActivated = [this](const wxDateTime& d) {

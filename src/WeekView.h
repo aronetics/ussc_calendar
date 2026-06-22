@@ -3,6 +3,7 @@
 #include <wx/scrolwin.h>
 #include <wx/datetime.h>
 #include "CalendarEvent.h"
+#include "UserStore.h"
 #include <functional>
 #include <vector>
 
@@ -10,7 +11,7 @@ class EventStore;
 
 class WeekView : public wxScrolledWindow {
 public:
-    WeekView(wxWindow* parent, EventStore* store);
+    WeekView(wxWindow* parent, EventStore* store, UserStore* users = nullptr);
     void SetDate(const wxDateTime& d);
     void SetSpan(int days);               // 7 (week) or 14 (two-week)
     int  GetSpan() const { return span_; }
@@ -23,6 +24,7 @@ public:
 private:
     void OnPaint(wxPaintEvent&);
     void OnLeftDClick(wxMouseEvent&);
+    void OnMotion(wxMouseEvent&);
     void OnTimer(wxTimerEvent&);
     void OnSize(wxSizeEvent&);
 
@@ -36,6 +38,7 @@ private:
                               int baseY) const;
 
     EventStore*  store_;
+    UserStore*   users_;
     wxDateTime   weekStart_;
     wxDateTime   today_;
     wxTimer      timer_;
@@ -46,7 +49,7 @@ private:
     static const int ALLDAY_H   = 30;
     static const int HEADER_H   = 40;
 
-    struct ERect { wxRect rect; std::string id; };
+    struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; };
     std::vector<ERect> eRects_;
 
     wxDECLARE_EVENT_TABLE();

@@ -8,6 +8,7 @@ enum { ID_WEEK_TIMER = wxID_HIGHEST + 500 };
 wxBEGIN_EVENT_TABLE(WeekView, wxScrolledWindow)
     EVT_PAINT(WeekView::OnPaint)
     EVT_LEFT_DCLICK(WeekView::OnLeftDClick)
+    EVT_MOTION(WeekView::OnMotion)
     EVT_TIMER(ID_WEEK_TIMER, WeekView::OnTimer)
     EVT_SIZE(WeekView::OnSize)
 wxEND_EVENT_TABLE()
@@ -20,10 +21,11 @@ static const wxColour WV_HDR_BG   (0xF8, 0xF9, 0xFA);
 static const wxColour WV_TODAY_BG (0xE8, 0xF0, 0xFE);
 static const wxColour WV_BLUE     (0x1A, 0x73, 0xE8);
 
-WeekView::WeekView(wxWindow* parent, EventStore* store)
+WeekView::WeekView(wxWindow* parent, EventStore* store, UserStore* users)
     : wxScrolledWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize,
                        wxVSCROLL | wxHSCROLL),
       store_(store),
+      users_(users),
       timer_(this, ID_WEEK_TIMER)
 {
     today_     = wxDateTime::Today();
@@ -115,7 +117,7 @@ void WeekView::DrawAllDayBand(wxDC& dc, int x, int y, int w, int h)
                 dc.DrawText(ep->title, pr.x + 3, pr.y + 2);
                 dc.DestroyClippingRegion();
 
-                ERect er; er.rect = pr; er.id = ep->id;
+                ERect er; er.rect = pr; er.id = ep->id; er.participants = ep->participants;
                 eRects_.push_back(er);
                 break;  // one pill per column for simplicity
             }
@@ -232,7 +234,7 @@ void WeekView::DrawDayColumns(wxDC& dc, int x, int y, int w, int h)
 
                 wxRect er(cx + 2, ey, colW - 4, eh);
 
-                ERect rec; rec.rect = er; rec.id = ep->id;
+                ERect rec; rec.rect = er; rec.id = ep->id; rec.participants = ep->participants;
                 eRects_.push_back(rec);
 
                 DrawEventRect(dc, *ep, er);
@@ -327,6 +329,27 @@ wxDateTime WeekView::SlotFromPoint(const wxPoint& pt, int timeColW, int colW,
     d.SetMinute(minutes % 60);
     d.SetSecond(0);
     return d;
+}
+
+void WeekView::OnMotion(wxMouseEvent& e)
+{
+    e.Skip();
+    int ux, uy;
+    CalcUnscrolledPosition(e.GetX(), e.GetY(), &ux, &uy);
+    wxPoint upt(ux, uy);
+    for (const auto& er : eRects_) {
+        if (!er.rect.Contains(upt)) continue;
+        if (er.participants.empty()) { SetToolTip(wxEmptyString); return; }
+        wxString tip;
+        for (const auto& pid : er.participants) {
+            const UserEntry* u = users_ ? users_->FindUser(pid) : nullptr;
+            if (!tip.IsEmpty()) tip += "\n";
+            tip += u ? wxString::FromUTF8(u->name) : wxString::FromUTF8(pid);
+        }
+        SetToolTip(tip);
+        return;
+    }
+    SetToolTip(wxEmptyString);
 }
 
 void WeekView::OnLeftDClick(wxMouseEvent& e)
