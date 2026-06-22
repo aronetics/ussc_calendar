@@ -46,9 +46,15 @@
     <VcpkgRoot Condition="'$(VcpkgRoot)' == ''">C:\vcpkg</VcpkgRoot>
     <!-- Override at CI time: msbuild /p:AppVersion=1.2.3 -->
     <AppVersion Condition="'$(AppVersion)' == ''">dev</AppVersion>
-    <OutDir>$(ProjectDir)out\$(Configuration)\</OutDir>
-    <IntDir>$(ProjectDir)obj\$(Configuration)\</IntDir>
     <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(ProjectDir)out\Debug\</OutDir>
+    <IntDir>$(ProjectDir)obj\Debug\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(ProjectDir)out\Release\</OutDir>
+    <IntDir>$(ProjectDir)obj\Release\</IntDir>
   </PropertyGroup>
 
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -127,6 +133,7 @@
     <ClCompile Include="src\IcsConnector.cpp" />
     <ClCompile Include="src\LoginPanel.cpp" />
     <ClCompile Include="src\MiniCalendar.cpp" />
+    <ClCompile Include="src\NLEventDialog.cpp" />
     <ClCompile Include="src\MonthView.cpp" />
     <ClCompile Include="src\OutlookComConnector.cpp" />
     <ClCompile Include="src\UserPanel.cpp" />
@@ -149,6 +156,7 @@
     <ClInclude Include="src\IcsConnector.h" />
     <ClInclude Include="src\LoginPanel.h" />
     <ClInclude Include="src\MiniCalendar.h" />
+    <ClInclude Include="src\NLEventDialog.h" />
     <ClInclude Include="src\MonthView.h" />
     <ClInclude Include="src\OutlookComConnector.h" />
     <ClInclude Include="src\UserPanel.h" />
