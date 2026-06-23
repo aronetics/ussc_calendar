@@ -2,6 +2,7 @@ obj/
 bin/
 build/
 out/
+installer/
 .vs/
 *.o
 *.a
@@ -12,3 +13,6 @@ compile_commands.json
 .idea/
 *.swp
 *~
+*.png
+*.txt
+*.zip
