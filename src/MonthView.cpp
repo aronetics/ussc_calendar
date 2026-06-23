@@ -6,6 +6,7 @@
 wxBEGIN_EVENT_TABLE(MonthView, wxPanel)
     EVT_PAINT(MonthView::OnPaint)
     EVT_LEFT_DCLICK(MonthView::OnLeftDClick)
+    EVT_RIGHT_UP(MonthView::OnRightUp)
     EVT_MOTION(MonthView::OnMotion)
     EVT_SIZE(MonthView::OnSize)
 wxEND_EVENT_TABLE()
@@ -206,6 +207,32 @@ void MonthView::OnPaint(wxPaintEvent&)
     // Left border on first column
     dc.SetPen(wxPen(GRID_LINE, 1));
     dc.DrawLine(0, hdrH, 0, h);
+}
+
+void MonthView::OnRightUp(wxMouseEvent& e)
+{
+    wxPoint pt = e.GetPosition();
+
+    std::string eid = HitTestEvent(pt);
+    wxMenu menu;
+    if (!eid.empty()) {
+        menu.Append(wxID_EDIT, "Edit Event");
+        menu.AppendSeparator();
+        menu.Append(wxID_DELETE, "Delete Event");
+        int choice = GetPopupMenuSelectionFromUser(menu);
+        if (choice == wxID_EDIT || choice == wxID_DELETE) {
+            if (OnEventActivated) OnEventActivated(eid);
+        }
+    } else {
+        wxDateTime d = HitTestDay(pt);
+        if (!d.IsValid()) return;
+        menu.Append(wxID_NEW, wxString::Format("New Event on %s %d",
+            wxDateTime::GetMonthName(d.GetMonth(), wxDateTime::Name_Abbr),
+            d.GetDay()));
+        if (GetPopupMenuSelectionFromUser(menu) == wxID_NEW) {
+            if (OnNewEventRequested) OnNewEventRequested(d);
+        }
+    }
 }
 
 void MonthView::OnLeftDClick(wxMouseEvent& e)

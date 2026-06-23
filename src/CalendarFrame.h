@@ -86,6 +86,11 @@ private:
     wxPanel*      calSidebar_    = nullptr;  // mini-cal + my-cals (shown after auth)
     wxPanel*      viewContainer_ = nullptr;
 
+    wxButton*     fabBtn_      = nullptr;      // hidden pre-login
+    wxStaticText* calTitle_    = nullptr;     // "Calendar" label — hidden pre-login
+    wxButton*     btnToday_    = nullptr;     // hidden pre-login
+    wxButton*     btnPrev_     = nullptr;     // hidden pre-login
+    wxButton*     btnNext_     = nullptr;     // hidden pre-login
     wxStaticText* userLabel_   = nullptr;     // shows "Signed in as …" in header
     wxButton*     logoutBtn_   = nullptr;
     std::string   activeUser_;

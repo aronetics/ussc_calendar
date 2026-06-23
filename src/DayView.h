@@ -18,10 +18,12 @@ public:
 
     std::function<void(const wxDateTime&)>  OnSlotActivated;
     std::function<void(const std::string&)> OnEventActivated;
+    std::function<void(const wxDateTime&)>  OnNewEventRequested;
 
 private:
     void OnPaint(wxPaintEvent&);
     void OnLeftDClick(wxMouseEvent&);
+    void OnRightUp(wxMouseEvent&);
     void OnMotion(wxMouseEvent&);
     void OnTimer(wxTimerEvent&);
     void OnSize(wxSizeEvent&);

@@ -8,6 +8,7 @@ enum { ID_DAY_TIMER = wxID_HIGHEST + 600 };
 wxBEGIN_EVENT_TABLE(DayView, wxScrolledWindow)
     EVT_PAINT(DayView::OnPaint)
     EVT_LEFT_DCLICK(DayView::OnLeftDClick)
+    EVT_RIGHT_UP(DayView::OnRightUp)
     EVT_MOTION(DayView::OnMotion)
     EVT_TIMER(ID_DAY_TIMER, DayView::OnTimer)
     EVT_SIZE(DayView::OnSize)
@@ -249,6 +250,41 @@ void DayView::OnMotion(wxMouseEvent& e)
         return;
     }
     SetToolTip(wxEmptyString);
+}
+
+void DayView::OnRightUp(wxMouseEvent& e)
+{
+    int ux, uy;
+    CalcUnscrolledPosition(e.GetX(), e.GetY(), &ux, &uy);
+    wxPoint upt(ux, uy);
+
+    for (const auto& er : eRects_) {
+        if (!er.rect.Contains(upt)) continue;
+        wxMenu menu;
+        menu.Append(wxID_EDIT, "Edit Event");
+        menu.AppendSeparator();
+        menu.Append(wxID_DELETE, "Delete Event");
+        int choice = GetPopupMenuSelectionFromUser(menu);
+        if (choice == wxID_EDIT || choice == wxID_DELETE) {
+            if (OnEventActivated) OnEventActivated(er.id);
+        }
+        return;
+    }
+
+    int bodyY = HEADER_H + ALLDAY_H;
+    if (uy >= bodyY && ux >= TIME_COL_W) {
+        int minutes = uy - bodyY;
+        wxDateTime slot = date_;
+        slot.SetHour(minutes / 60);
+        slot.SetMinute(minutes % 60);
+        slot.SetSecond(0);
+        wxMenu menu;
+        menu.Append(wxID_NEW, wxString::Format("New Event at %s",
+            slot.Format("%I:%M %p")));
+        if (GetPopupMenuSelectionFromUser(menu) == wxID_NEW) {
+            if (OnNewEventRequested) OnNewEventRequested(slot);
+        }
+    }
 }
 
 void DayView::OnLeftDClick(wxMouseEvent& e)

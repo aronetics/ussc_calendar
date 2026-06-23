@@ -153,43 +153,46 @@ wxPanel* CalendarFrame::BuildHeader()
 
     // ── Left side ─────────────────────────────────────────────────────────
 
-    // "+ New event" FAB button (blue)
-    wxButton* fab = new wxButton(hdr, ID_BTN_NEW_FAB, "+ New event",
-                                 wxDefaultPosition, wxSize(130, 36));
-    fab->SetBackgroundColour(wxColour(26, 115, 232));
-    fab->SetForegroundColour(*wxWHITE);
-    fab->SetFont(wxFont(wxFontInfo(10).Bold().Family(wxFONTFAMILY_SWISS)));
-    hbox->Add(fab, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 8);
+    // "+ New event" FAB button (blue) — hidden until login
+    fabBtn_ = new wxButton(hdr, ID_BTN_NEW_FAB, "+ New event",
+                           wxDefaultPosition, wxSize(130, 36));
+    fabBtn_->SetBackgroundColour(wxColour(26, 115, 232));
+    fabBtn_->SetForegroundColour(*wxWHITE);
+    fabBtn_->SetFont(wxFont(wxFontInfo(10).Bold().Family(wxFONTFAMILY_SWISS)));
+    fabBtn_->Show(false);
+    hbox->Add(fabBtn_, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 8);
 
-    // App title
-    wxStaticText* title = new wxStaticText(hdr, wxID_ANY, "Calendar");
-    title->SetFont(wxFont(wxFontInfo(18).Bold().Family(wxFONTFAMILY_SWISS)));
-    title->SetForegroundColour(wxColour(32, 33, 36));
-    hbox->Add(title, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
+    // App title — hidden until login
+    calTitle_ = new wxStaticText(hdr, wxID_ANY, "Calendar");
+    calTitle_->SetFont(wxFont(wxFontInfo(18).Bold().Family(wxFONTFAMILY_SWISS)));
+    calTitle_->SetForegroundColour(wxColour(32, 33, 36));
+    calTitle_->Show(false);
+    hbox->Add(calTitle_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
 
-    // "Today" button
-    wxButton* btnToday = new wxButton(hdr, ID_BTN_TODAY, "Today",
-                                      wxDefaultPosition, wxSize(70, 32),
-                                      wxBORDER_SIMPLE);
-    btnToday->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_SWISS)));
-    hbox->Add(btnToday, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
+    // "Today" button — hidden until login
+    btnToday_ = new wxButton(hdr, ID_BTN_TODAY, "Today",
+                             wxDefaultPosition, wxSize(70, 32), wxBORDER_SIMPLE);
+    btnToday_->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_SWISS)));
+    btnToday_->Show(false);
+    hbox->Add(btnToday_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 4);
 
-    // < > navigation
-    wxButton* btnPrev = new wxButton(hdr, ID_BTN_PREV, "<",
-                                     wxDefaultPosition, wxSize(32, 32),
-                                     wxBORDER_SIMPLE);
-    wxButton* btnNext = new wxButton(hdr, ID_BTN_NEXT, ">",
-                                     wxDefaultPosition, wxSize(32, 32),
-                                     wxBORDER_SIMPLE);
-    hbox->Add(btnPrev, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
-    hbox->Add(btnNext, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 12);
+    // < > navigation — hidden until login
+    btnPrev_ = new wxButton(hdr, ID_BTN_PREV, "<",
+                            wxDefaultPosition, wxSize(32, 32), wxBORDER_SIMPLE);
+    btnNext_ = new wxButton(hdr, ID_BTN_NEXT, ">",
+                            wxDefaultPosition, wxSize(32, 32), wxBORDER_SIMPLE);
+    btnPrev_->Show(false);
+    btnNext_->Show(false);
+    hbox->Add(btnPrev_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
+    hbox->Add(btnNext_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 12);
 
-    // Date label
+    // Date label — hidden until login
     headerLabel_ = new wxStaticText(hdr, wxID_ANY, wxEmptyString,
                                     wxDefaultPosition, wxSize(220, -1),
                                     wxST_NO_AUTORESIZE);
     headerLabel_->SetFont(wxFont(wxFontInfo(16).Family(wxFONTFAMILY_SWISS)));
     headerLabel_->SetForegroundColour(wxColour(32, 33, 36));
+    headerLabel_->Show(false);
     hbox->Add(headerLabel_, 0, wxALIGN_CENTER_VERTICAL);
 
     hbox->AddStretchSpacer(1);
@@ -223,8 +226,13 @@ wxPanel* CalendarFrame::BuildHeader()
     btnTwoWeek_ = makeToggle(ID_BTN_TWOWEEK, "2 Weeks");
     btnMonth_   = makeToggle(ID_BTN_MONTH,   "Month");
 
-    // Make "2 Weeks" button slightly wider
     btnTwoWeek_->SetMinSize(wxSize(72, 32));
+
+    // Hidden until login
+    btnDay_->Show(false);
+    btnWeek_->Show(false);
+    btnTwoWeek_->Show(false);
+    btnMonth_->Show(false);
 
     hbox->Add(btnDay_,     0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
     hbox->Add(btnWeek_,    0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 2);
@@ -289,6 +297,9 @@ wxPanel* CalendarFrame::BuildCalSidebar()
     miniCal_ = new MiniCalendar(cs, &store_);
     miniCal_->OnDateSelected = [this](const wxDateTime& d) {
         SetDisplayDate(d);
+        // In month view, drill down to the clicked day for visible feedback
+        if (viewMode_ == ViewMode::Month)
+            SetViewMode(ViewMode::Day);
     };
 
     sidebarActionBtn_ = new wxButton(cs, ID_BTN_NL_ADD, "Quick Add",
@@ -347,6 +358,16 @@ void CalendarFrame::OnLoginSuccess(const std::string& username)
     satPanel_->Show(true);
     GetSizer()->Layout();
 
+    if (fabBtn_)    fabBtn_->Show(true);
+    if (calTitle_)  calTitle_->Show(true);
+    if (btnToday_)  btnToday_->Show(true);
+    if (btnPrev_)   btnPrev_->Show(true);
+    if (btnNext_)   btnNext_->Show(true);
+    if (headerLabel_) headerLabel_->Show(true);
+    if (btnDay_)    btnDay_->Show(true);
+    if (btnWeek_)   btnWeek_->Show(true);
+    if (btnTwoWeek_) btnTwoWeek_->Show(true);
+    if (btnMonth_)  btnMonth_->Show(true);
     if (userLabel_) {
         userLabel_->SetLabel(wxString::Format("Signed in as %s",
                                               wxString::FromUTF8(username)));
@@ -368,6 +389,16 @@ void CalendarFrame::OnLogout(wxCommandEvent&)
     sidebarPanel_->Layout();
     GetSizer()->Layout();
 
+    if (fabBtn_)     fabBtn_->Show(false);
+    if (calTitle_)   calTitle_->Show(false);
+    if (btnToday_)   btnToday_->Show(false);
+    if (btnPrev_)    btnPrev_->Show(false);
+    if (btnNext_)    btnNext_->Show(false);
+    if (headerLabel_) headerLabel_->Show(false);
+    if (btnDay_)     btnDay_->Show(false);
+    if (btnWeek_)    btnWeek_->Show(false);
+    if (btnTwoWeek_) btnTwoWeek_->Show(false);
+    if (btnMonth_)   btnMonth_->Show(false);
     userLabel_->SetLabel(wxEmptyString);
     userLabel_->Show(false);
     logoutBtn_->Show(false);
@@ -400,6 +431,9 @@ wxPanel* CalendarFrame::BuildViewArea()
     monthView_->OnEventActivated = [this](const std::string& id) {
         EditEvent(id);
     };
+    monthView_->OnNewEventRequested = [this](const wxDateTime& d) {
+        CreateEventOnDate(d);
+    };
 
     weekView_->OnSlotActivated = [this](const wxDateTime& d) {
         CreateEventOnDate(d);
@@ -407,12 +441,18 @@ wxPanel* CalendarFrame::BuildViewArea()
     weekView_->OnEventActivated = [this](const std::string& id) {
         EditEvent(id);
     };
+    weekView_->OnNewEventRequested = [this](const wxDateTime& d) {
+        CreateEventOnDate(d);
+    };
 
     dayView_->OnSlotActivated = [this](const wxDateTime& d) {
         CreateEventOnDate(d);
     };
     dayView_->OnEventActivated = [this](const std::string& id) {
         EditEvent(id);
+    };
+    dayView_->OnNewEventRequested = [this](const wxDateTime& d) {
+        CreateEventOnDate(d);
     };
 
     vbox->Add(monthView_, 1, wxEXPAND);
@@ -518,11 +558,11 @@ void CalendarFrame::UpdateHeaderLabel()
             wxDateTime we = ws;
             we.Add(wxDateSpan::Days(span));
             if (ws.GetMonth() == we.GetMonth()) {
-                label = wxString::Format("%s %d \xe2\x80\x93 %d, %d",
+                label = wxString::Format("%s %d - %d, %d",
                     wxDateTime::GetMonthName(ws.GetMonth(), wxDateTime::Name_Abbr),
                     ws.GetDay(), we.GetDay(), ws.GetYear());
             } else {
-                label = wxString::Format("%s %d \xe2\x80\x93 %s %d, %d",
+                label = wxString::Format("%s %d - %s %d, %d",
                     wxDateTime::GetMonthName(ws.GetMonth(), wxDateTime::Name_Abbr),
                     ws.GetDay(),
                     wxDateTime::GetMonthName(we.GetMonth(), wxDateTime::Name_Abbr),
@@ -532,7 +572,7 @@ void CalendarFrame::UpdateHeaderLabel()
         }
 
         case ViewMode::Day:
-            label = displayDate_.Format("%A, %B %e, %Y");
+            label = displayDate_.Format("%A, %B %e %Y");
             break;
     }
 

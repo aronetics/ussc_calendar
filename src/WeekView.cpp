@@ -8,6 +8,7 @@ enum { ID_WEEK_TIMER = wxID_HIGHEST + 500 };
 wxBEGIN_EVENT_TABLE(WeekView, wxScrolledWindow)
     EVT_PAINT(WeekView::OnPaint)
     EVT_LEFT_DCLICK(WeekView::OnLeftDClick)
+    EVT_RIGHT_UP(WeekView::OnRightUp)
     EVT_MOTION(WeekView::OnMotion)
     EVT_TIMER(ID_WEEK_TIMER, WeekView::OnTimer)
     EVT_SIZE(WeekView::OnSize)
@@ -350,6 +351,40 @@ void WeekView::OnMotion(wxMouseEvent& e)
         return;
     }
     SetToolTip(wxEmptyString);
+}
+
+void WeekView::OnRightUp(wxMouseEvent& e)
+{
+    int ux, uy;
+    CalcUnscrolledPosition(e.GetX(), e.GetY(), &ux, &uy);
+    wxPoint upt(ux, uy);
+
+    for (const auto& er : eRects_) {
+        if (!er.rect.Contains(upt)) continue;
+        wxMenu menu;
+        menu.Append(wxID_EDIT, "Edit Event");
+        menu.AppendSeparator();
+        menu.Append(wxID_DELETE, "Delete Event");
+        int choice = GetPopupMenuSelectionFromUser(menu);
+        if (choice == wxID_EDIT || choice == wxID_DELETE) {
+            if (OnEventActivated) OnEventActivated(er.id);
+        }
+        return;
+    }
+
+    int sz   = GetVirtualSize().GetWidth();
+    int colW = std::max(1, (sz - TIME_COL_W) / span_);
+    int baseY = HEADER_H + ALLDAY_H;
+    wxDateTime slot = SlotFromPoint(upt, TIME_COL_W, colW, baseY);
+    if (slot.IsValid()) {
+        wxMenu menu;
+        menu.Append(wxID_NEW, wxString::Format("New Event on %s %d at %s",
+            wxDateTime::GetMonthName(slot.GetMonth(), wxDateTime::Name_Abbr),
+            slot.GetDay(), slot.Format("%I:%M %p")));
+        if (GetPopupMenuSelectionFromUser(menu) == wxID_NEW) {
+            if (OnNewEventRequested) OnNewEventRequested(slot);
+        }
+    }
 }
 
 void WeekView::OnLeftDClick(wxMouseEvent& e)
