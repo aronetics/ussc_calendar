@@ -1,5 +1,6 @@
 // winsock2.h must come before any windows.h / wx/wx.h include
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <bcrypt.h>
@@ -537,7 +538,7 @@ std::string LanServer::Dispatch(const std::string& method,
     return "{\"ok\":false,\"msg\":\"Not found\"}";
 }
 
-// ── Connection handler (runs in per-connection thread) ────────────────────────
+// ── Connection handler (called from worker threads) ───────────────────────────
 
 void LanServer::HandleConnection(uintptr_t rawSock)
 {
@@ -563,7 +564,36 @@ void LanServer::HandleConnection(uintptr_t rawSock)
     closesocket(sock);
 }
 
-// ── Listen thread ─────────────────────────────────────────────────────────────
+// ── Thread pool ───────────────────────────────────────────────────────────────
+
+void LanServer::EnqueueSocket(uintptr_t sock)
+{
+    {
+        std::lock_guard<std::mutex> lk(workMutex_);
+        workQueue_.push(sock);
+    }
+    workCv_.notify_one();
+}
+
+void LanServer::WorkerThread()
+{
+    while (true) {
+        uintptr_t sock = (uintptr_t)INVALID_SOCKET;
+        {
+            std::unique_lock<std::mutex> lk(workMutex_);
+            workCv_.wait(lk, [this]() {
+                return !workQueue_.empty() || !running_.load();
+            });
+            if (!running_.load() && workQueue_.empty()) return;
+            sock = workQueue_.front();
+            workQueue_.pop();
+        }
+        if (sock != (uintptr_t)INVALID_SOCKET)
+            HandleConnection(sock);
+    }
+}
+
+// ── Accept thread (one thread, accepts only) ──────────────────────────────────
 
 void LanServer::ListenThread()
 {
@@ -594,10 +624,7 @@ void LanServer::ListenThread()
     while (running_.load()) {
         SOCKET client = accept(ls, nullptr, nullptr);
         if (client == INVALID_SOCKET) break;
-        // Spawn detached per-connection thread
-        std::thread([this, client]() {
-            HandleConnection((uintptr_t)client);
-        }).detach();
+        EnqueueSocket((uintptr_t)client);  // hand off to pool — no thread spawn here
     }
 
     closesocket(ls);
@@ -619,14 +646,25 @@ bool LanServer::Start(int port, std::string& err)
 {
     if (running_.load()) return true;
     port_ = port;
-    thread_ = std::thread([this]() { ListenThread(); });
-    // Give the thread a moment to bind
+
+    // Size pool to 2× hardware threads, floored at 4, capped at 32
+    unsigned hw = std::thread::hardware_concurrency();
+    threadCount_ = static_cast<int>(std::min(std::max(hw * 2u, 4u), 32u));
+    workers_.reserve(threadCount_);
+    for (int i = 0; i < threadCount_; ++i)
+        workers_.emplace_back([this]() { WorkerThread(); });
+
+    acceptThread_ = std::thread([this]() { ListenThread(); });
+
+    // Wait up to 1 s for the listen socket to bind
     for (int i = 0; i < 20; ++i) {
         if (running_.load()) return true;
         ::Sleep(50);
     }
+
     if (!running_.load()) {
         err = "Server failed to bind on port " + std::to_string(port);
+        Stop();
         return false;
     }
     return true;
@@ -634,11 +672,19 @@ bool LanServer::Start(int port, std::string& err)
 
 void LanServer::Stop()
 {
-    if (!running_.load()) return;
+    if (!running_.load() && workers_.empty()) return;
     running_.store(false);
+
+    // Unblock the accept() call by closing the listen socket
     SOCKET ls = (SOCKET)listenSock_;
     if (ls != INVALID_SOCKET) closesocket(ls);
-    if (thread_.joinable()) thread_.join();
+    if (acceptThread_.joinable()) acceptThread_.join();
+
+    // Wake all workers so they can exit their wait loop
+    workCv_.notify_all();
+    for (auto& w : workers_)
+        if (w.joinable()) w.join();
+    workers_.clear();
 }
 
 std::string LanServer::LocalIp() const

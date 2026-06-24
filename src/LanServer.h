@@ -8,6 +8,9 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <condition_variable>
+#include <queue>
+#include <vector>
 #include <map>
 #include <functional>
 
@@ -64,8 +67,18 @@ private:
     mutable std::mutex            tokenMutex_;
     std::map<std::string,std::string> tokens_;   // token → username
 
-    std::thread         thread_;
+    // Thread pool — one accept thread, N worker threads (2× hw_concurrency, min 4, max 32)
+    void WorkerThread();
+    void EnqueueSocket(uintptr_t sock);
+
+    std::vector<std::thread>    workers_;
+    std::queue<uintptr_t>       workQueue_;
+    std::mutex                  workMutex_;
+    std::condition_variable     workCv_;
+
+    std::thread         acceptThread_;
     std::atomic<bool>   running_{false};
-    uintptr_t           listenSock_ = (uintptr_t)~0ull;  // INVALID_SOCKET
+    uintptr_t           listenSock_ = (uintptr_t)~0ull;
     int                 port_       = 7743;
+    int                 threadCount_= 0;
 };
