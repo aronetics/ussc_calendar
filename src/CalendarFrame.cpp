@@ -11,6 +11,11 @@
 #include "IcsConnector.h"
 #include "NLEventDialog.h"
 #include "SatellitePanel.h"
+#include "PassPredictPanel.h"
+#include "AllianceReportDialog.h"
+#include "LanServer.h"
+#include "LanClient.h"
+#include "License.h"
 #ifdef _WIN32
 #  include <wx/stdpaths.h>
 #endif
@@ -25,6 +30,10 @@
 enum {
     ID_MENU_ACCOUNTS  = wxID_HIGHEST + 50,
     ID_MENU_EXPORT_ICS,
+    ID_MENU_ALLIANCE_REPORT,
+    ID_MENU_NETWORK,
+    ID_MENU_LICENSE,
+    ID_TIMER_SYNC = wxID_HIGHEST + 90,
 
     ID_BTN_TODAY   = wxID_HIGHEST + 1,
     ID_BTN_PREV,
@@ -58,7 +67,11 @@ wxBEGIN_EVENT_TABLE(CalendarFrame, wxFrame)
     EVT_MENU(ID_MENU_QUIT,         CalendarFrame::OnMenuQuit)
     EVT_MENU(ID_MENU_ABOUT,        CalendarFrame::OnMenuAbout)
     EVT_BUTTON(ID_BTN_NL_ADD,      CalendarFrame::OnNLAdd)
-    EVT_BUTTON(ID_BTN_LOGOUT,      CalendarFrame::OnLogout)
+    EVT_BUTTON(ID_BTN_LOGOUT,           CalendarFrame::OnLogout)
+    EVT_MENU(ID_MENU_ALLIANCE_REPORT,   CalendarFrame::OnMenuAllianceReport)
+    EVT_MENU(ID_MENU_NETWORK,           CalendarFrame::OnMenuNetworkSettings)
+    EVT_MENU(ID_MENU_LICENSE,           CalendarFrame::OnMenuLicense)
+    EVT_TIMER(ID_TIMER_SYNC,            CalendarFrame::OnSyncTimer)
     EVT_KEY_DOWN(CalendarFrame::OnKeyDown)
 wxEND_EVENT_TABLE()
 
@@ -67,6 +80,7 @@ wxEND_EVENT_TABLE()
 CalendarFrame::CalendarFrame()
     : wxFrame(nullptr, wxID_ANY, "USSC Calendar",
               wxDefaultPosition, wxSize(1280, 800))
+    , syncTimer_(this, ID_TIMER_SYNC)
 {
     SetMinSize(wxSize(800, 600));
     SetIcon(wxIcon(wxT("#1"), wxBITMAP_TYPE_ICO_RESOURCE));
@@ -80,10 +94,15 @@ CalendarFrame::CalendarFrame()
     fileMenu->Append(ID_MENU_ACCOUNTS,   "&Accounts...\tCtrl+,");
     fileMenu->Append(ID_MENU_EXPORT_ICS, "Export &ICS...");
     fileMenu->AppendSeparator();
+    fileMenu->Append(ID_MENU_ALLIANCE_REPORT, "Alliance &Deconfliction Report...");
+    fileMenu->AppendSeparator();
     fileMenu->Append(ID_MENU_QUIT, "&Quit\tCtrl+Q");
     mb->Append(fileMenu, "&File");
 
     wxMenu* helpMenu = new wxMenu();
+    helpMenu->Append(ID_MENU_NETWORK, "&Network Settings...");
+    helpMenu->Append(ID_MENU_LICENSE, "&Enter License Key...");
+    helpMenu->AppendSeparator();
     helpMenu->Append(ID_MENU_ABOUT, "&About");
     mb->Append(helpMenu, "&Help");
 
@@ -119,6 +138,17 @@ CalendarFrame::CalendarFrame()
     satPanel_ = BuildSatellitePanel();
     bodyHBox->Add(satPanel_, 0, wxEXPAND);
 
+    // Pass prediction panel (far right)
+    wxPanel* sepPass = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(1, -1));
+    sepPass->SetBackgroundColour(wxColour(0xDA, 0xDC, 0xE0));
+    bodyHBox->Add(sepPass, 0, wxEXPAND);
+
+    passPanel_ = new PassPredictPanel(this, &gsStore_, &satStore_,
+                                      &tleStore_, &store_);
+    passPanel_->OnPassesGenerated = [this]() { RefreshAllViews(); if (miniCal_) miniCal_->Refresh(); };
+    bodyHBox->Add(passPanel_, 0, wxEXPAND);
+    passPanel_->Show(false);
+
     displayDate_ = wxDateTime::Today();
 
     // Hide calendar area and satellite panel until the user authenticates
@@ -137,10 +167,17 @@ CalendarFrame::CalendarFrame()
         userStore_.Load();
         sourceStore_.LoadVisibility();
         LoadConnectorSettings();
+        netCfg_ = LoadNetworkConfig();
+        ApplyNetworkMode(netCfg_);
     });
 }
 
-CalendarFrame::~CalendarFrame() {}
+CalendarFrame::~CalendarFrame()
+{
+    syncTimer_.Stop();
+    if (lanServer_) { lanServer_->Stop(); delete lanServer_; }
+    delete lanClient_;
+}
 
 // ── Header ───────────────────────────────────────────────────────────────────
 
@@ -346,6 +383,11 @@ void CalendarFrame::OnLoginSuccess(const std::string& username)
     satStore_.Load();
     satPanel_->Reload();
 
+    // Load ground stations and TLE cache
+    gsStore_.Load();
+    tleStore_.Load();
+    passPanel_->Reload();
+
     // Rebuild sidebar panels with freshly loaded user/source data.
     userPanel_->Rebuild();
     srcPanel_->Rebuild();
@@ -356,6 +398,7 @@ void CalendarFrame::OnLoginSuccess(const std::string& username)
 
     viewContainer_->Show(true);
     satPanel_->Show(true);
+    passPanel_->Show(true);
     GetSizer()->Layout();
 
     if (fabBtn_)    fabBtn_->Show(true);
@@ -385,6 +428,7 @@ void CalendarFrame::OnLogout(wxCommandEvent&)
 
     viewContainer_->Show(false);
     satPanel_->Show(false);
+    passPanel_->Show(false);
     calSidebar_->Show(false);
     sidebarPanel_->Layout();
     GetSizer()->Layout();
@@ -694,10 +738,147 @@ void CalendarFrame::OnMenuQuit(wxCommandEvent&)
     Close(true);
 }
 
+void CalendarFrame::OnMenuAllianceReport(wxCommandEvent&)
+{
+    AllianceReportDialog dlg(this, store_.Events(), satStore_, sourceStore_);
+    dlg.ShowModal();
+}
+
 void CalendarFrame::OnMenuAbout(wxCommandEvent&)
 {
-    wxMessageBox("USSC Calendar\nBuilt with wxWidgets 3.2\n\nA Google Calendar-inspired desktop calendar.",
-                 "About USSC Calendar", wxOK | wxICON_INFORMATION, this);
+    LicenseInfo li = License::Load();
+    wxMessageBox(
+        wxString::Format(
+            "USSC Calendar\nBuilt with wxWidgets 3.3\n\n"
+            "License: %s\n"
+            "Network mode: %s",
+            wxString::FromUTF8(li.message),
+            netCfg_.mode == NetworkMode::Server ? "Server" :
+            netCfg_.mode == NetworkMode::Client ? "Client" : "Standalone"),
+        "About USSC Calendar", wxOK | wxICON_INFORMATION, this);
+}
+
+// ── Networking ────────────────────────────────────────────────────────────────
+
+void CalendarFrame::ApplyNetworkMode(const NetworkConfig& cfg)
+{
+    syncTimer_.Stop();
+
+    // Tear down any existing server/client
+    if (lanServer_) { lanServer_->Stop(); delete lanServer_; lanServer_ = nullptr; }
+    if (lanClient_) {
+        store_.SetLanClient(nullptr);
+        satStore_.SetLanClient(nullptr);
+        gsStore_.SetLanClient(nullptr);
+        delete lanClient_;
+        lanClient_ = nullptr;
+        loginPanel_->RemoteAuth = nullptr;
+    }
+
+    netCfg_ = cfg;
+
+    if (cfg.mode == NetworkMode::Server) {
+        // Delegates to LoginPanel::Validate which uses the same BCrypt SHA-256 hash
+        // comparison as the local login path — no separate credential store needed.
+        auto credCheck = [this](const std::string& user, const std::string& pass) -> bool {
+            return loginPanel_ && loginPanel_->Validate(user, pass);
+        };
+
+        lanServer_ = new LanServer(store_, satStore_, gsStore_, userStore_, tleStore_, credCheck);
+        std::string err;
+        if (!lanServer_->Start(cfg.port, err)) {
+            wxMessageBox("Failed to start LAN server: " + wxString::FromUTF8(err),
+                         "Network Error", wxOK | wxICON_ERROR, this);
+            delete lanServer_;
+            lanServer_ = nullptr;
+            return;
+        }
+        // Show the server IP in the title bar
+        std::string ip = lanServer_->LocalIp();
+        SetTitle(wxString::Format("USSC Calendar — SERVER  %s:%d",
+                                   wxString::FromUTF8(ip), cfg.port));
+
+    } else if (cfg.mode == NetworkMode::Client) {
+        lanClient_ = new LanClient();
+        std::string err;
+        if (!lanClient_->Connect(cfg.clientHost, cfg.clientPort, err)) {
+            wxMessageBox("Cannot reach server at " +
+                         wxString::FromUTF8(cfg.clientHost) + ":" +
+                         std::to_string(cfg.clientPort) + "\n" +
+                         wxString::FromUTF8(err),
+                         "Network Error", wxOK | wxICON_ERROR, this);
+            delete lanClient_;
+            lanClient_ = nullptr;
+            return;
+        }
+
+        // Wire remote auth into LoginPanel
+        loginPanel_->RemoteAuth = [this](const std::string& user, const std::string& pass) -> bool {
+            std::string err2;
+            bool ok = lanClient_->Auth(user, pass, err2);
+            if (!ok && !err2.empty())
+                wxMessageBox(wxString::FromUTF8(err2), "Login Failed", wxOK | wxICON_ERROR, this);
+            return ok;
+        };
+
+        // Wire stores to pull from remote
+        store_.SetLanClient(lanClient_);
+        satStore_.SetLanClient(lanClient_);
+        gsStore_.SetLanClient(lanClient_);
+
+        // Reload stores from server
+        store_.Load();
+        satStore_.Load();
+        gsStore_.Load();
+
+        SetTitle(wxString::Format("USSC Calendar — CLIENT  %s:%d",
+                                   wxString::FromUTF8(cfg.clientHost), cfg.clientPort));
+
+        // Poll server every 30 s to keep all operators in sync
+        syncTimer_.Start(30000);
+    }
+}
+
+void CalendarFrame::OnSyncTimer(wxTimerEvent&)
+{
+    if (!lanClient_ || !lanClient_->IsConnected()) return;
+    store_.Load();
+    RefreshAllViews();
+    if (miniCal_) miniCal_->Refresh();
+}
+
+void CalendarFrame::OnMenuNetworkSettings(wxCommandEvent&)
+{
+    NetworkModeDialog dlg(this, netCfg_);
+    if (dlg.ShowModal() == wxID_OK) {
+        ApplyNetworkMode(dlg.Result());
+        if (lanClient_ && !activeUser_.empty()) {
+            store_.Load();
+            satStore_.Load();
+            gsStore_.Load();
+            RefreshAllViews();
+        }
+    }
+}
+
+void CalendarFrame::OnMenuLicense(wxCommandEvent&)
+{
+    wxTextEntryDialog dlg(this,
+        "Enter your USSC Calendar license key:\n"
+        "(Format: PREFIX-XXXXX-XXXXX-CCCCC)\n"
+        "  SGL = Single-User    MLT = Multi-User    TRL = Trial",
+        "License Key", "", wxOK | wxCANCEL);
+    if (dlg.ShowModal() != wxID_OK) return;
+    std::string key = std::string(dlg.GetValue().mb_str());
+    LicenseInfo li  = License::Validate(key);
+    if (li.valid) {
+        License::Save(key);
+        wxMessageBox("License accepted: " + wxString::FromUTF8(li.message),
+                     "License Activated", wxOK | wxICON_INFORMATION, this);
+    } else {
+        wxMessageBox("Invalid key: " + wxString::FromUTF8(li.message),
+                     "License Error", wxOK | wxICON_ERROR, this);
+    }
 }
 
 // ── Accounts / connector ──────────────────────────────────────────────────────

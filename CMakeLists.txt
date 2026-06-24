@@ -22,24 +22,31 @@ include(${wxWidgets_USE_FILE})
 
 # ── Sources ───────────────────────────────────────────────────────────────────
 set(SOURCES
+    src/AllianceReportDialog.cpp
     src/CalendarConnector.cpp
     src/CalendarFrame.cpp
     src/CalendarSourcePanel.cpp
     src/CalendarSourceStore.cpp
+    src/ConflictDetector.cpp
     src/ConnectorDialog.cpp
     src/DayView.cpp
     src/EventDialog.cpp
     src/EventStore.cpp
     src/EwsConnector.cpp
     src/GraphApiConnector.cpp
+    src/GroundStationStore.cpp
     src/IcsConnector.cpp
     src/LoginPanel.cpp
     src/MiniCalendar.cpp
     src/MonthView.cpp
     src/NLEventDialog.cpp
+    src/PassPredictor.cpp
+    src/PassPredictPanel.cpp
     src/SatellitePanel.cpp
     src/SatelliteStore.cpp
+    src/Sgp4.cpp
     src/OutlookComConnector.cpp
+    src/TleStore.cpp
     src/UserPanel.cpp
     src/UserStore.cpp
     src/WeekView.cpp

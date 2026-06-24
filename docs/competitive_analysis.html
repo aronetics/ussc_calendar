@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>USSC Calendar — Competitive Analysis & Capability Assessment</title>
+<style>
+  @page { size: letter; margin: 0.85in 0.9in; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.45;
+    color: #1a1a2e;
+    background: #fff;
+  }
+
+  /* ── Cover block ── */
+  .cover {
+    background: linear-gradient(135deg, #0b3d91 0%, #0d6efd 60%, #00acc1 100%);
+    color: white;
+    padding: 38px 40px 30px 40px;
+    margin-bottom: 26px;
+    border-radius: 3px;
+  }
+  .cover .eyebrow {
+    font-size: 8pt;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    opacity: 0.8;
+    margin-bottom: 8px;
+  }
+  .cover h1 {
+    font-size: 22pt;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 10px;
+  }
+  .cover .subtitle {
+    font-size: 11pt;
+    opacity: 0.9;
+    margin-bottom: 20px;
+  }
+  .cover .meta {
+    font-size: 8pt;
+    opacity: 0.7;
+    border-top: 1px solid rgba(255,255,255,0.3);
+    padding-top: 10px;
+    display: flex;
+    gap: 32px;
+  }
+
+  /* ── Section headings ── */
+  h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #0b3d91;
+    border-bottom: 2.5px solid #0b3d91;
+    padding-bottom: 4px;
+    margin: 22px 0 10px 0;
+  }
+  h3 {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin: 14px 0 5px 0;
+  }
+
+  /* ── Body text ── */
+  p { margin-bottom: 7px; }
+
+  /* ── Comparison table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 9pt;
+    page-break-inside: avoid;
+  }
+  thead tr {
+    background: #0b3d91;
+    color: white;
+  }
+  thead th {
+    padding: 7px 9px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 9pt;
+  }
+  tbody tr:nth-child(even) { background: #f0f4ff; }
+  tbody tr:nth-child(odd)  { background: #ffffff; }
+  tbody td {
+    padding: 6px 9px;
+    border-bottom: 1px solid #d0d8f0;
+    vertical-align: top;
+  }
+  .check  { color: #0d6c34; font-weight: 700; }
+  .cross  { color: #b00020; font-weight: 700; }
+  .partial{ color: #b05000; font-weight: 700; }
+
+  /* ── Gap / capability cards ── */
+  .card-row {
+    display: flex;
+    gap: 12px;
+    margin: 10px 0;
+  }
+  .card {
+    flex: 1;
+    border-radius: 4px;
+    padding: 12px 14px;
+    font-size: 9pt;
+  }
+  .card.gap   { background: #fff3e0; border-left: 4px solid #e65100; }
+  .card.win   { background: #e8f5e9; border-left: 4px solid #2e7d32; }
+  .card.tier  { background: #e3f2fd; border-left: 4px solid #0b3d91; }
+  .card h4 {
+    font-size: 9.5pt;
+    font-weight: 700;
+    margin-bottom: 5px;
+  }
+  .card ul { padding-left: 14px; }
+  .card li { margin-bottom: 3px; }
+
+  /* ── Callout box ── */
+  .callout {
+    background: #e3f2fd;
+    border: 1.5px solid #0b3d91;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 9.5pt;
+  }
+  .callout strong { color: #0b3d91; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 28px;
+    border-top: 1px solid #c0cce0;
+    padding-top: 8px;
+    font-size: 7.5pt;
+    color: #666;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ── Tier roadmap ── */
+  .tier-block {
+    background: #f8faff;
+    border: 1px solid #c0cce0;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 8px 0;
+    page-break-inside: avoid;
+  }
+  .tier-block .tier-label {
+    display: inline-block;
+    background: #0b3d91;
+    color: white;
+    font-size: 8pt;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 6px;
+  }
+  .tier-block ul { padding-left: 16px; font-size: 9pt; }
+  .tier-block li { margin-bottom: 3px; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Cover ──────────────────────────────────────────────────── -->
+<div class="cover">
+  <div class="eyebrow">Capability Assessment &amp; Competitive Analysis</div>
+  <h1>USSC Calendar<br>vs. Existing Scheduling &amp; Tracking Software</h1>
+  <div class="subtitle">How the USSC Calendar outclasses Aurora Scheduling and GPredict<br>
+  for operational space command coordination</div>
+  <div class="meta">
+    <span>Classification: UNCLASSIFIED // FOR OFFICIAL USE ONLY</span>
+    <span>Prepared: June 2026</span>
+    <span>Distribution: Program Office</span>
+  </div>
+</div>
+
+<!-- ── Executive Summary ──────────────────────────────────────── -->
+<h2>Executive Summary</h2>
+<p>
+The USSC Calendar is purpose-built for multi-alliance space command operational scheduling.
+No existing commercial or open-source tool occupies this niche.
+<strong>Aurora Scheduling</strong> is an enterprise project optimizer for aerospace
+manufacturing — it knows nothing about satellites, real-time orbits, or alliance deconfliction.
+<strong>GPredict</strong> is a hobbyist satellite tracker for amateur radio operators —
+it has no scheduling capability, no shared access, and no operational structure.
+</p>
+<div class="callout">
+  <strong>Key finding:</strong> GPredict tracks satellites but cannot schedule around them.
+  Aurora schedules complex projects but knows nothing about satellites. USSC Calendar is
+  the only tool that does both — and adds multi-alliance coordination that neither competitor
+  can approach.
+</div>
+
+<!-- ── Competitor Profiles ────────────────────────────────────── -->
+<h2>Competitor Profiles</h2>
+
+<h3>Aurora Scheduling</h3>
+<p>
+Aurora is a constraint-optimization engine used by aerospace primes (Bombardier, Textron,
+General Dynamics, NASA) to schedule complex manufacturing and maintenance operations.
+Its strengths are Monte Carlo simulation, critical-chain analysis, resource leveling,
+and Gantt/PERT visualization. It is deployed as a contact-sales enterprise product at
+an estimated $220–$260 per user per month.
+</p>
+<p>
+<strong>Core limitation:</strong> Aurora has zero domain knowledge of orbital mechanics,
+satellite assets, ground stations, or alliance structures. It cannot ingest TLE data,
+compute pass windows, or reason about which alliance is using which asset when. It is a
+generic scheduling solver, not an operational space tool.
+</p>
+
+<h3>GPredict</h3>
+<p>
+GPredict is a free, open-source GTK+ desktop application for real-time satellite tracking
+and pass prediction, targeting amateur radio operators. It ingests TLE data from Celestrak,
+propagates orbits via SGP4/SDP4, shows satellite positions on a world map, and predicts
+upcoming pass windows. It integrates with Hamlib for Doppler tuning of radio receivers.
+</p>
+<p>
+<strong>Core limitation:</strong> GPredict is a <em>tracker</em>, not a <em>scheduler</em>.
+It shows when a satellite will be visible, but cannot create calendar events, coordinate
+multi-user access, enforce alliance visibility rules, detect conflicts, or share data across
+a network. Known bugs include segmentation faults on rotator control, primitive pass
+prediction resolution, and no Windows-native support.
+</p>
+
+<!-- ── Side-by-Side Comparison ───────────────────────────────── -->
+<h2>Side-by-Side Feature Comparison</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:34%">Capability</th>
+      <th style="width:22%">Aurora Scheduling</th>
+      <th style="width:22%">GPredict</th>
+      <th style="width:22%">USSC Calendar</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Satellite TLE ingestion</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  Yes (Celestrak)</td>
+      <td class="check">✓  Yes (Celestrak, cached)</td>
+    </tr>
+    <tr>
+      <td><strong>SGP4 pass prediction</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  Yes (real-time display)</td>
+      <td class="check">✓  Yes → generates calendar events</td>
+    </tr>
+    <tr>
+      <td><strong>Pass → calendar event</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  Automatic, color-coded</td>
+    </tr>
+    <tr>
+      <td><strong>Ground station management</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="partial">~ Manual lat/lon only</td>
+      <td class="check">✓  Named stations, elevation mask</td>
+    </tr>
+    <tr>
+      <td><strong>Multi-user shared calendar</strong></td>
+      <td class="partial">~ Per-seat, no realtime sharing</td>
+      <td class="cross">✗  Single user, desktop only</td>
+      <td class="check">✓  LAN master instance, shared state</td>
+    </tr>
+    <tr>
+      <td><strong>Alliance visibility control</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  CSpO / NATO / INDOPACOM</td>
+    </tr>
+    <tr>
+      <td><strong>Satellite conflict detection</strong></td>
+      <td class="partial">~ Generic resource conflict</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  Double-booking, overlap detection</td>
+    </tr>
+    <tr>
+      <td><strong>Alliance deconfliction report</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  Per-satellite usage timeline</td>
+    </tr>
+    <tr>
+      <td><strong>Exchange / M365 integration</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  EWS, Graph API, Outlook COM</td>
+    </tr>
+    <tr>
+      <td><strong>Government auth (Kerberos, OAuth)</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  Device-code, NTLM/Kerberos</td>
+    </tr>
+    <tr>
+      <td><strong>Natural language event creation</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  Free-text event parser</td>
+    </tr>
+    <tr>
+      <td><strong>ICS export</strong></td>
+      <td class="cross">✗  None</td>
+      <td class="cross">✗  None</td>
+      <td class="check">✓  RFC 5545 compliant</td>
+    </tr>
+    <tr>
+      <td><strong>Offline / air-gap capable</strong></td>
+      <td class="cross">✗  Cloud-dependent</td>
+      <td class="check">✓  Yes</td>
+      <td class="check">✓  Yes (local auth + storage)</td>
+    </tr>
+    <tr>
+      <td><strong>Windows 11 native</strong></td>
+      <td class="check">✓  Yes</td>
+      <td class="partial">~ Via GTK compatibility layer</td>
+      <td class="check">✓  Native Win32/wxWidgets</td>
+    </tr>
+    <tr>
+      <td><strong>Cost</strong></td>
+      <td class="cross">~$240/user/month</td>
+      <td class="check">Free / open source</td>
+      <td class="check">Internal / program-funded</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ── Gap Analysis ───────────────────────────────────────────── -->
+<h2>Gap Analysis: Where Competitors Fall Short</h2>
+
+<div class="card-row">
+  <div class="card gap">
+    <h4>GPredict Gaps</h4>
+    <ul>
+      <li>Tracks passes but cannot create calendar events from them</li>
+      <li>No multi-user access — single desktop only</li>
+      <li>No alliance or operational unit structure</li>
+      <li>No conflict detection when two users schedule the same asset</li>
+      <li>Buggy: segfaults on rotator, broken pass refinement, Linux-primary</li>
+      <li>No government authentication or network calendar integration</li>
+      <li>No named ground station catalog with elevation masks</li>
+    </ul>
+  </div>
+  <div class="card gap">
+    <h4>Aurora Scheduling Gaps</h4>
+    <ul>
+      <li>Zero orbital mechanics knowledge — cannot work with TLEs</li>
+      <li>No satellite asset database or pass prediction capability</li>
+      <li>No alliance, nation, or operational unit visibility controls</li>
+      <li>No government authentication patterns</li>
+      <li>Contact-sales only; no transparent pricing or self-serve trial</li>
+      <li>Custom integration required for every system connection</li>
+      <li>Not designed for real-time operational coordination</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── USSC Calendar Differentiators ─────────────────────────── -->
+<h2>USSC Calendar Unique Capabilities</h2>
+
+<div class="card-row">
+  <div class="card win">
+    <h4>What Only USSC Calendar Does</h4>
+    <ul>
+      <li><strong>Pass → Event pipeline:</strong> SGP4 propagation feeds directly into the shared operational calendar — no manual transfer required</li>
+      <li><strong>Multi-alliance structure:</strong> CSpO, NATO, INDOPACOM visibility controls baked into every event and view</li>
+      <li><strong>Satellite conflict detection:</strong> Flags double-booked assets and overlapping pass windows automatically</li>
+      <li><strong>Alliance deconfliction report:</strong> One-click view of who is using which satellite, when, and across which alliance</li>
+      <li><strong>Government-native auth:</strong> Kerberos/NTLM, OAuth 2.0 device-code flow, and on-premises Exchange — all supported natively</li>
+      <li><strong>LAN shared state:</strong> All ground stations, TLE caches, and pass events are shared across the installation</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── Implementation Roadmap ─────────────────────────────────── -->
+<h2>Implemented Feature Roadmap</h2>
+<p>The following capability tiers have been implemented and verified to build cleanly:</p>
+
+<div class="tier-block">
+  <span class="tier-label">TIER 1 — Closes the GPredict Gap</span>
+  <ul>
+    <li>SGP4/SDP4 orbital propagator (Vallado algorithm, near-Earth objects)</li>
+    <li>TLE ingestion from Celestrak via HTTPS for all catalogued NORAD IDs</li>
+    <li>Named ground station management (lat/lon, elevation mask, active flag)</li>
+    <li>Automatic pass prediction: AOS, TCA, LOS, max elevation, azimuth at TCA</li>
+    <li>Pass events auto-generated in the shared calendar, color-coded teal</li>
+    <li>3-day lookahead window with 30-second coarse / 2-second refinement step</li>
+  </ul>
+</div>
+
+<div class="tier-block">
+  <span class="tier-label">TIER 2 — Closes the Aurora Gap</span>
+  <ul>
+    <li>Satellite conflict detector: identifies double-booked assets by satellite ID</li>
+    <li>Overlap detection across all pass events in the event store</li>
+    <li>Conflict data exposed to the alliance report for operator awareness</li>
+  </ul>
+</div>
+
+<div class="tier-block">
+  <span class="tier-label">TIER 3 — Extends the Unique Moat</span>
+  <ul>
+    <li>Alliance Deconfliction Report: per-satellite timeline grouped by alliance and nation</li>
+    <li>Conflict flags annotated in the report output</li>
+    <li>Report accessible from the File menu, no extra tooling required</li>
+  </ul>
+</div>
+
+<!-- ── Architecture Note ──────────────────────────────────────── -->
+<h2>Architecture: LAN Master Instance</h2>
+<p>
+Unlike GPredict (single-user desktop) or Aurora (per-seat cloud), USSC Calendar runs as
+a <strong>single master instance on the LAN</strong>. All operators log in to the same
+running instance via the network. This means:
+</p>
+<ul style="margin: 8px 0 8px 18px; font-size: 9.5pt;">
+  <li>Ground station configurations are shared — one admin manages the catalog for all users</li>
+  <li>TLE caches are fetched once and available to all sessions immediately</li>
+  <li>Generated pass events appear on every operator's calendar simultaneously</li>
+  <li>Alliance deconfliction reports reflect the true real-time state across all users</li>
+  <li>No sync protocol required — all state is authoritative at the source</li>
+</ul>
+
+<!-- ── Conclusion ─────────────────────────────────────────────── -->
+<h2>Conclusion</h2>
+<p>
+USSC Calendar occupies a capability space that neither Aurora Scheduling nor GPredict can
+reach. Aurora is a powerful scheduling engine with no orbital or alliance context.
+GPredict is a useful tracking tool with no scheduling or coordination capability.
+</p>
+<p>
+USSC Calendar combines real-time SGP4 pass prediction, automatic calendar event generation,
+multi-alliance visibility controls, government authentication, satellite conflict detection,
+and a shared LAN architecture into a single purpose-built operational tool. It does not
+require expensive enterprise licensing, works offline and in air-gapped environments,
+and integrates natively with the DoD's existing Exchange/M365 infrastructure.
+</p>
+<div class="callout">
+  <strong>Bottom line:</strong> For space command operational scheduling, USSC Calendar is
+  not competing with Aurora or GPredict — it is creating a new category that neither
+  existing tool serves.
+</div>
+
+<div class="footer">
+  <span>USSC Calendar — Competitive Assessment</span>
+  <span>UNCLASSIFIED // FOR OFFICIAL USE ONLY</span>
+  <span>June 2026</span>
+</div>
+
+</body>
+</html>

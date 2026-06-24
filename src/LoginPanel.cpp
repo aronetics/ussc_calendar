@@ -141,12 +141,13 @@ void LoginPanel::OnSignIn(wxCommandEvent&)
     if (user.empty()) { SetError("Please enter your username."); return; }
     if (pass.empty()) { SetError("Please enter your password."); return; }
 
-    if (Authenticate(user, pass)) {
+    bool ok = RemoteAuth ? RemoteAuth(user, pass) : Authenticate(user, pass);
+    if (ok) {
         ClearError();
         passCtrl_->Clear();
         if (OnLoginSuccess) OnLoginSuccess(user);
     } else {
-        SetError("Incorrect username or password.");
+        SetError(RemoteAuth ? "Server rejected credentials." : "Incorrect username or password.");
         passCtrl_->Clear();
         passCtrl_->SetFocus();
     }
@@ -165,6 +166,13 @@ bool LoginPanel::Authenticate(const std::string& user, const std::string& pass)
     auto it = users_.find(user);
     if (it == users_.end()) return false;
     return it->second == HashPassword(pass);
+}
+
+bool LoginPanel::Validate(const std::string& user, const std::string& pass)
+{
+    // Ensure the credential map is loaded (safe to call multiple times)
+    if (users_.empty()) LoadUsers();
+    return Authenticate(user, pass);
 }
 
 std::string LoginPanel::HashPassword(const std::string& password)

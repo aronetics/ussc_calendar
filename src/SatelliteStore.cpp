@@ -1,4 +1,5 @@
 #include "SatelliteStore.h"
+#include "LanClient.h"
 #include <wx/wx.h>
 #include <wx/dir.h>
 #include <wx/filename.h>
@@ -159,6 +160,27 @@ SatelliteStore::SatelliteStore()
 
 void SatelliteStore::Load()
 {
+    if (client_) {
+        sats_.clear();
+        std::string err;
+        std::string json = client_->Get("/api/satellites", err);
+        if (json.empty()) return;
+        size_t arrPos = json.find("\"satellites\":");
+        if (arrPos == std::string::npos) return;
+        auto robjs = SsSplitObjects(json.substr(arrPos));
+        for (size_t i = 1; i < robjs.size(); ++i) {
+            const std::string& obj = robjs[i];
+            Satellite s;
+            s.id        = SsExtractString(obj, "id");
+            s.name      = SsExtractString(obj, "name");
+            s.noradId   = SsExtractString(obj, "norad");
+            s.orbitType = SsExtractString(obj, "orbit");
+            s.status    = static_cast<SatStatus>(SsExtractInt(obj, "status", 0));
+            if (!s.id.empty()) sats_.push_back(s);
+        }
+        return;
+    }
+
     std::ifstream f(path_);
     if (!f.is_open()) return;
 
@@ -233,18 +255,36 @@ void SatelliteStore::Save() const
     f << "]}\n";
 }
 
+// Minimal single-satellite JSON for REST calls
+static std::string SatToJsonBody(const Satellite& s)
+{
+    char buf[256];
+    std::snprintf(buf, sizeof(buf),
+        "{\"id\":\"%s\",\"name\":\"%s\",\"norad\":\"%s\",\"orbit\":\"%s\",\"status\":%d}",
+        SsJsonEscape(s.id).c_str(), SsJsonEscape(s.name).c_str(),
+        SsJsonEscape(s.noradId).c_str(), SsJsonEscape(s.orbitType).c_str(),
+        (int)s.status);
+    return buf;
+}
+
 void SatelliteStore::Add(const Satellite& s)
 {
     Satellite copy = s;
     if (copy.id.empty()) copy.id = SsGenerateId();
     sats_.push_back(copy);
-    Save();
+    if (client_) { std::string err; client_->Post("/api/satellites", SatToJsonBody(copy), err); }
+    else          Save();
 }
 
 void SatelliteStore::Update(const Satellite& s)
 {
     for (auto& sat : sats_) {
-        if (sat.id == s.id) { sat = s; Save(); return; }
+        if (sat.id == s.id) {
+            sat = s;
+            if (client_) { std::string err; client_->Put("/api/satellites/" + s.id, SatToJsonBody(s), err); }
+            else          Save();
+            return;
+        }
     }
 }
 
@@ -252,5 +292,6 @@ void SatelliteStore::Remove(const std::string& id)
 {
     sats_.erase(std::remove_if(sats_.begin(), sats_.end(),
         [&id](const Satellite& s){ return s.id == id; }), sats_.end());
-    Save();
+    if (client_) { std::string err; client_->Delete("/api/satellites/" + id, err); }
+    else          Save();
 }

@@ -6,8 +6,14 @@
 #include "CalendarSourceStore.h"
 #include "CalendarConnector.h"
 #include "SatelliteStore.h"
+#include "GroundStationStore.h"
+#include "TleStore.h"
+#include "NetworkModeDialog.h"
 #include <memory>
 #include <string>
+
+class LanServer;
+class LanClient;
 
 class MiniCalendar;
 class MonthView;
@@ -17,6 +23,7 @@ class LoginPanel;
 class UserPanel;
 class CalendarSourcePanel;
 class SatellitePanel;
+class PassPredictPanel;
 
 enum class ViewMode { Month, Week, TwoWeek, Day };
 
@@ -55,8 +62,15 @@ private:
     void OnMenuNewEvent(wxCommandEvent&);
     void OnMenuAccounts(wxCommandEvent&);
     void OnMenuExportICS(wxCommandEvent&);
+    void OnMenuAllianceReport(wxCommandEvent&);
+    void OnMenuNetworkSettings(wxCommandEvent&);
+    void OnMenuLicense(wxCommandEvent&);
     void OnMenuQuit(wxCommandEvent&);
     void OnMenuAbout(wxCommandEvent&);
+
+    // LAN server/client lifecycle
+    void ApplyNetworkMode(const NetworkConfig& cfg);
+    void OnSyncTimer(wxTimerEvent&);
 
     void OnNLAdd(wxCommandEvent&);
 
@@ -77,7 +91,15 @@ private:
     CalendarSourceStore sourceStore_;
     ConnectorSettings   connectorSettings_;
     SatelliteStore      satStore_;
+    GroundStationStore  gsStore_;
+    TleStore            tleStore_;
     ViewMode            viewMode_ = ViewMode::Month;
+
+    // LAN networking
+    LanServer*    lanServer_ = nullptr;
+    LanClient*    lanClient_ = nullptr;
+    NetworkConfig netCfg_;
+    wxTimer       syncTimer_;
     wxDateTime    displayDate_;
 
     wxPanel*      headerPanel_   = nullptr;
@@ -101,8 +123,9 @@ private:
     WeekView*     weekView_  = nullptr;
     DayView*      dayView_   = nullptr;
     UserPanel*          userPanel_    = nullptr;
-    CalendarSourcePanel* srcPanel_    = nullptr;
-    SatellitePanel*     satPanel_     = nullptr;
+    CalendarSourcePanel* srcPanel_   = nullptr;
+    SatellitePanel*     satPanel_    = nullptr;
+    PassPredictPanel*   passPanel_   = nullptr;
 
     wxStaticText* headerLabel_ = nullptr;
 

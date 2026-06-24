@@ -1,4 +1,5 @@
 #include "EventStore.h"
+#include "LanClient.h"
 #include <wx/wx.h>
 #include <wx/dir.h>
 #include <wx/filename.h>
@@ -317,8 +318,71 @@ EventStore::EventStore()
     path_ = std::string((dir + "/events.json").mb_str());
 }
 
+// Serialize one event to a JSON object string (matches Save() field names)
+static std::string SerializeOneEvent(const CalendarEvent& e)
+{
+    std::ostringstream o;
+    o << "{\"id\":\""   << JsonEscape(e.id)          << "\","
+      << "\"title\":\"" << JsonEscape(e.title)        << "\","
+      << "\"desc\":\""  << JsonEscape(e.description)  << "\","
+      << "\"loc\":\""   << JsonEscape(e.location)     << "\","
+      << "\"start\":\"" << FormatDateTime(e.start)    << "\","
+      << "\"end\":\""   << FormatDateTime(e.end)      << "\","
+      << "\"allDay\":"  << (e.allDay ? "true" : "false") << ","
+      << "\"color\":\"" << ColourToHex(e.color)       << "\","
+      << "\"participants\":[";
+    for (size_t i = 0; i < e.participants.size(); ++i) {
+        o << "\"" << JsonEscape(e.participants[i]) << "\"";
+        if (i + 1 < e.participants.size()) o << ",";
+    }
+    o << "],\"src\":\"" << JsonEscape(e.calendarSource) << "\"";
+    if (e.recurrence.freq != RecurFreq::None) {
+        o << ",\"rf\":" << (int)e.recurrence.freq
+          << ",\"ri\":" << e.recurrence.interval;
+        if (e.recurrence.until.IsValid())
+            o << ",\"ru\":\"" << FormatDateTime(e.recurrence.until) << "\"";
+        if (e.recurrence.count > 0)
+            o << ",\"rc\":" << e.recurrence.count;
+    }
+    o << "}";
+    return o.str();
+}
+
 void EventStore::Load()
 {
+    if (client_) {
+        events_.clear();
+        std::string err;
+        std::string json = client_->Get("/api/events", err);
+        if (json.empty()) return;
+        // Fall through to parse the JSON string using same logic as file-based load
+        std::string srcJson = json;
+        size_t arrPos = srcJson.find("\"events\":");
+        if (arrPos == std::string::npos) return;
+        auto objs2 = SplitJsonObjects(srcJson.substr(arrPos));
+        for (size_t i = 1; i < objs2.size(); ++i) {
+            const std::string& obj = objs2[i];
+            CalendarEvent e;
+            e.id          = ExtractJsonString(obj, "id");
+            e.title       = ExtractJsonString(obj, "title");
+            e.description = ExtractJsonString(obj, "desc");
+            e.location    = ExtractJsonString(obj, "loc");
+            e.allDay      = ExtractJsonBool  (obj, "allDay");
+            e.start       = ParseDateTime(ExtractJsonString(obj, "start"));
+            e.end         = ParseDateTime(ExtractJsonString(obj, "end"));
+            e.color       = HexToColour(ExtractJsonString(obj, "color"));
+            e.participants   = ExtractJsonArray(obj, "participants");
+            e.calendarSource = ExtractJsonString(obj, "src");
+            e.recurrence.freq     = static_cast<RecurFreq>(ExtractJsonInt(obj, "rf", 0));
+            e.recurrence.interval = ExtractJsonInt(obj, "ri", 1);
+            e.recurrence.count    = ExtractJsonInt(obj, "rc", 0);
+            std::string ru = ExtractJsonString(obj, "ru");
+            if (!ru.empty()) e.recurrence.until = ParseDateTime(ru);
+            if (!e.id.empty()) events_.push_back(e);
+        }
+        return;
+    }
+
     std::ifstream f(path_);
     if (!f.is_open()) return;
 
@@ -397,7 +461,12 @@ void EventStore::Add(const CalendarEvent& e)
     CalendarEvent copy = e;
     if (copy.id.empty()) copy.id = GenerateId();
     events_.push_back(copy);
-    Save();
+    if (client_) {
+        std::string err;
+        client_->Post("/api/events", SerializeOneEvent(copy), err);
+    } else {
+        Save();
+    }
 }
 
 void EventStore::Update(const CalendarEvent& e)
@@ -405,7 +474,12 @@ void EventStore::Update(const CalendarEvent& e)
     for (auto& ev : events_) {
         if (ev.id == e.id) {
             ev = e;
-            Save();
+            if (client_) {
+                std::string err;
+                client_->Put("/api/events/" + e.id, SerializeOneEvent(e), err);
+            } else {
+                Save();
+            }
             return;
         }
     }
@@ -416,7 +490,12 @@ void EventStore::Remove(const std::string& id)
     events_.erase(std::remove_if(events_.begin(), events_.end(),
         [&id](const CalendarEvent& e){ return e.id == id; }),
         events_.end());
-    Save();
+    if (client_) {
+        std::string err;
+        client_->Delete("/api/events/" + id, err);
+    } else {
+        Save();
+    }
 }
 
 std::vector<const CalendarEvent*> EventStore::EventsOnDate(const wxDateTime& date) const
