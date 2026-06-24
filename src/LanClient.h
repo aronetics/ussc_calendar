@@ -20,15 +20,18 @@ public:
     bool        Delete(const std::string& path, std::string& err);
 
     bool        IsConnected() const { return connected_; }
+    bool        IsTls()       const { return useTls_; }
     std::string Host()        const { return host_; }
     int         Port()        const { return port_; }
 
 private:
     std::string Request(const std::string& method, const std::string& path,
                         const std::string& body, std::string& err);
+    bool Probe(std::string& err);   // GET /api/info and verify response
 
     std::string host_;
     int         port_      = 7743;
     std::string token_;
     bool        connected_ = false;
+    bool        useTls_    = false;
 };

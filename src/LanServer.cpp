@@ -7,7 +7,16 @@
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "bcrypt.lib")
 
+// Schannel TLS — must follow winsock2.h
+#define SECURITY_WIN32
+#include <security.h>
+#include <schannel.h>
+#include <wincrypt.h>
+#pragma comment(lib, "secur32.lib")
+#pragma comment(lib, "crypt32.lib")
+
 #include "LanServer.h"
+#include "NetworkInfo.h"
 #include <wx/wx.h>
 #include <sstream>
 #include <algorithm>
@@ -15,6 +24,179 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <functional>
+
+// ── I/O abstraction (plain TCP or TLS) ───────────────────────────────────────
+
+struct IoStream {
+    std::function<int(char*, int)>        recv_fn;
+    std::function<int(const char*, int)>  send_fn;
+};
+
+// ── Schannel TLS stream (file-local, server-side) ─────────────────────────────
+
+struct SchannelConn {
+    SOCKET    sock     = INVALID_SOCKET;
+    CtxtHandle ctx     = {};
+    bool       ctxInit = false;
+    SecPkgContext_StreamSizes sizes_ = {};
+    std::vector<BYTE> extra_;     // leftover encrypted bytes from previous DecryptMessage
+
+    bool Handshake(SOCKET s, CredHandle& cred);
+    int  Read (char* buf, int maxLen);
+    int  Write(const char* buf, int len);
+    void Close();
+};
+
+bool SchannelConn::Handshake(SOCKET s, CredHandle& cred)
+{
+    sock = s;
+    SecInvalidateHandle(&ctx);
+
+    const DWORD kFlags = ASC_REQ_SEQUENCE_DETECT | ASC_REQ_REPLAY_DETECT |
+                         ASC_REQ_CONFIDENTIALITY  | ASC_REQ_EXTENDED_ERROR |
+                         ASC_REQ_STREAM;
+
+    std::vector<BYTE> inBuf(32768);
+    DWORD inBufLen = 0;
+    bool firstCall = true;
+
+    while (true) {
+        int n = recv(sock, (char*)inBuf.data() + inBufLen,
+                     (int)(inBuf.size() - inBufLen), 0);
+        if (n <= 0) return false;
+        inBufLen += (DWORD)n;
+
+        SecBuffer ib[2];
+        ib[0] = {inBufLen, SECBUFFER_TOKEN, inBuf.data()};
+        ib[1] = {0, SECBUFFER_EMPTY, nullptr};
+        SecBufferDesc iDesc = {SECBUFFER_VERSION, 2, ib};
+
+        SecBuffer ob[1];
+        ob[0] = {0, SECBUFFER_TOKEN, nullptr};
+        SecBufferDesc oDesc = {SECBUFFER_VERSION, 1, ob};
+
+        DWORD retFlags = 0;
+        SECURITY_STATUS ss = AcceptSecurityContext(
+            &cred, firstCall ? nullptr : &ctx,
+            &iDesc, kFlags, 0, &ctx, &oDesc, &retFlags, nullptr);
+        firstCall = false;
+        ctxInit   = true;
+
+        if (ob[0].pvBuffer && ob[0].cbBuffer) {
+            send(sock, (char*)ob[0].pvBuffer, (int)ob[0].cbBuffer, 0);
+            FreeContextBuffer(ob[0].pvBuffer);
+        }
+
+        if (ss == SEC_E_OK) {
+            if (ib[1].BufferType == SECBUFFER_EXTRA && ib[1].cbBuffer)
+                extra_.assign(inBuf.data() + inBufLen - ib[1].cbBuffer,
+                              inBuf.data() + inBufLen);
+            QueryContextAttributes(&ctx, SECPKG_ATTR_STREAM_SIZES, &sizes_);
+            return true;
+        }
+        if (ss == SEC_I_CONTINUE_NEEDED) {
+            if (ib[1].BufferType == SECBUFFER_EXTRA && ib[1].cbBuffer) {
+                DWORD rem = ib[1].cbBuffer;
+                memmove(inBuf.data(), inBuf.data() + inBufLen - rem, rem);
+                inBufLen = rem;
+            } else {
+                inBufLen = 0;
+            }
+        } else {
+            return false;
+        }
+    }
+}
+
+int SchannelConn::Read(char* buf, int maxLen)
+{
+    DWORD recvCap = sizes_.cbHeader + sizes_.cbMaximumMessage + sizes_.cbTrailer + 1024;
+    std::vector<BYTE> enc;
+    if (!extra_.empty()) { enc = std::move(extra_); extra_.clear(); }
+
+    while (true) {
+        if (enc.empty()) {
+            enc.resize(recvCap);
+            int n = recv(sock, (char*)enc.data(), (int)enc.size(), 0);
+            if (n <= 0) return n;
+            enc.resize((size_t)n);
+        }
+
+        SecBuffer bufs[4] = {};
+        bufs[0] = {(DWORD)enc.size(), SECBUFFER_DATA, enc.data()};
+        bufs[1] = {0, SECBUFFER_EMPTY, nullptr};
+        bufs[2] = {0, SECBUFFER_EMPTY, nullptr};
+        bufs[3] = {0, SECBUFFER_EMPTY, nullptr};
+        SecBufferDesc desc = {SECBUFFER_VERSION, 4, bufs};
+
+        SECURITY_STATUS ss = DecryptMessage(&ctx, &desc, 0, nullptr);
+
+        if (ss == SEC_E_OK) {
+            for (int i = 0; i < 4; ++i) {
+                if (bufs[i].BufferType != SECBUFFER_DATA) continue;
+                int cp = (int)bufs[i].cbBuffer < maxLen ? (int)bufs[i].cbBuffer : maxLen;
+                memcpy(buf, bufs[i].pvBuffer, (size_t)cp);
+                for (int j = i + 1; j < 4; ++j) {
+                    if (bufs[j].BufferType == SECBUFFER_EXTRA && bufs[j].cbBuffer)
+                        extra_.assign((BYTE*)bufs[j].pvBuffer,
+                                      (BYTE*)bufs[j].pvBuffer + bufs[j].cbBuffer);
+                }
+                return cp;
+            }
+            return 0;
+        }
+        if (ss == SEC_E_INCOMPLETE_MESSAGE) {
+            size_t have = enc.size();
+            enc.resize(have + recvCap);
+            int n = recv(sock, (char*)enc.data() + have, (int)(enc.size() - have), 0);
+            if (n <= 0) return n;
+            enc.resize(have + (size_t)n);
+        } else if (ss == SEC_I_RENEGOTIATE) {
+            for (int i = 0; i < 4; ++i)
+                if (bufs[i].BufferType == SECBUFFER_TOKEN && bufs[i].cbBuffer)
+                    send(sock, (char*)bufs[i].pvBuffer, (int)bufs[i].cbBuffer, 0);
+            for (int i = 0; i < 4; ++i)
+                if (bufs[i].BufferType == SECBUFFER_EXTRA && bufs[i].cbBuffer)
+                    extra_.assign((BYTE*)bufs[i].pvBuffer,
+                                  (BYTE*)bufs[i].pvBuffer + bufs[i].cbBuffer);
+            enc.clear();
+        } else {
+            return -1;
+        }
+    }
+}
+
+int SchannelConn::Write(const char* buf, int len)
+{
+    int sent = 0;
+    while (sent < len) {
+        int chunk = len - sent;
+        if (chunk > (int)sizes_.cbMaximumMessage) chunk = (int)sizes_.cbMaximumMessage;
+
+        std::vector<BYTE> msg(sizes_.cbHeader + (size_t)chunk + sizes_.cbTrailer);
+        memcpy(msg.data() + sizes_.cbHeader, buf + sent, (size_t)chunk);
+
+        SecBuffer bufs[4] = {};
+        bufs[0] = {sizes_.cbHeader,  SECBUFFER_STREAM_HEADER,  msg.data()};
+        bufs[1] = {(DWORD)chunk,     SECBUFFER_DATA,            msg.data() + sizes_.cbHeader};
+        bufs[2] = {sizes_.cbTrailer, SECBUFFER_STREAM_TRAILER,  msg.data() + sizes_.cbHeader + chunk};
+        bufs[3] = {0,                SECBUFFER_EMPTY,            nullptr};
+        SecBufferDesc desc = {SECBUFFER_VERSION, 4, bufs};
+
+        if (EncryptMessage(&ctx, 0, &desc, 0) != SEC_E_OK) return -1;
+
+        int total = (int)(sizes_.cbHeader + (size_t)chunk + sizes_.cbTrailer);
+        if (send(sock, (char*)msg.data(), total, 0) != total) return -1;
+        sent += chunk;
+    }
+    return sent;
+}
+
+void SchannelConn::Close()
+{
+    if (ctxInit) { DeleteSecurityContext(&ctx); ctxInit = false; }
+}
 
 // ── HTTP helpers ─────────────────────────────────────────────────────────────
 
@@ -41,18 +223,14 @@ static std::string MakeResponse(int code, const std::string& body)
 
 static const int kMaxBodyBytes = 4 * 1024 * 1024; // 4 MB cap; prevents memory exhaustion
 
-static std::string ReadFullRequest(SOCKET sock)
+static std::string ReadFullRequest(const IoStream& io)
 {
-    // 5-second receive timeout — prevents slow-client thread exhaustion
-    DWORD tvMs = 5000;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&tvMs, sizeof(tvMs));
-
     std::string data;
     data.reserve(4096);
     char buf[4096];
 
     while (true) {
-        int n = recv(sock, buf, sizeof(buf), 0);
+        int n = io.recv_fn(buf, sizeof(buf));
         if (n <= 0) break;
         data.append(buf, n);
 
@@ -497,7 +675,8 @@ std::string LanServer::Dispatch(const std::string& method,
     // Always allow info and auth
     if (path == "/api/info") {
         st = 200;
-        return "{\"app\":\"USSC Calendar\",\"version\":\"1.0\",\"status\":\"ok\"}";
+        std::string tls = tlsEnabled_ ? "true" : "false";
+        return "{\"app\":\"USSC Calendar\",\"version\":\"1.0\",\"status\":\"ok\",\"tls\":" + tls + "}";
     }
 
     if (path == "/api/auth") {
@@ -543,11 +722,35 @@ std::string LanServer::Dispatch(const std::string& method,
 void LanServer::HandleConnection(uintptr_t rawSock)
 {
     SOCKET sock = (SOCKET)rawSock;
-    std::string raw = ReadFullRequest(sock);
-    if (raw.empty()) { closesocket(sock); return; }
+
+    // Timeout on the raw socket applies to all recv() calls,
+    // including those made internally by Schannel during the TLS handshake.
+    DWORD tvMs = 5000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&tvMs, sizeof(tvMs));
+
+    SchannelConn tls;
+    IoStream io;
+
+    if (tlsEnabled_) {
+        CredHandle& cred = *static_cast<CredHandle*>(tlsCredHandle_);
+        if (!tls.Handshake(sock, cred)) { closesocket(sock); return; }
+        io.recv_fn = [&tls](char* b, int n) { return tls.Read(b, n); };
+        io.send_fn = [&tls](const char* b, int n) { return tls.Write(b, n); };
+    } else {
+        io.recv_fn = [sock](char* b, int n) { return (int)::recv(sock, b, n, 0); };
+        io.send_fn = [sock](const char* b, int n) { return (int)::send(sock, b, n, 0); };
+    }
+
+    std::string raw = ReadFullRequest(io);
+    if (raw.empty()) {
+        if (tlsEnabled_) tls.Close();
+        closesocket(sock);
+        return;
+    }
 
     std::string method, path, body, token;
     if (!ParseRequestLine(raw, method, path, body, token)) {
+        if (tlsEnabled_) tls.Close();
         closesocket(sock);
         return;
     }
@@ -560,7 +763,8 @@ void LanServer::HandleConnection(uintptr_t rawSock)
     std::string respBody = Dispatch(method, path, body, token, st);
     std::string response = MakeResponse(st, respBody);
 
-    send(sock, response.c_str(), (int)response.size(), 0);
+    io.send_fn(response.c_str(), (int)response.size());
+    if (tlsEnabled_) tls.Close();
     closesocket(sock);
 }
 
@@ -647,6 +851,35 @@ bool LanServer::Start(int port, std::string& err)
     if (running_.load()) return true;
     port_ = port;
 
+    // Try to acquire TLS credentials from the AD CS machine certificate store.
+    // Non-fatal: if no valid Server Authentication cert is found, fall back to plaintext.
+    MachineCredential mc = FindMachineCert();
+    if (mc.found && mc.certContext) {
+        PCCERT_CONTEXT pCert = static_cast<PCCERT_CONTEXT>(mc.certContext);
+        SCHANNEL_CRED sc     = {};
+        sc.dwVersion              = SCHANNEL_CRED_VERSION;
+        sc.cCreds                 = 1;
+        sc.paCred                 = &pCert;
+        sc.grbitEnabledProtocols  = SP_PROT_TLS1_2 | SP_PROT_TLS1_3;
+        sc.dwFlags                = SCH_CRED_NO_SYSTEM_MAPPER;
+
+        auto* credHandle = new CredHandle;
+        TimeStamp expiry;
+        SECURITY_STATUS ss = AcquireCredentialsHandleW(
+            nullptr, UNISP_NAME_W, SECPKG_CRED_INBOUND,
+            nullptr, &sc, nullptr, nullptr, credHandle, &expiry);
+
+        CertFreeCertificateContext(pCert);
+
+        if (ss == SEC_E_OK) {
+            tlsCredHandle_ = credHandle;
+            tlsEnabled_    = true;
+        } else {
+            delete credHandle;
+            // Proceed without TLS
+        }
+    }
+
     // Size pool to 2× hardware threads, floored at 4, capped at 32
     unsigned hw = std::thread::hardware_concurrency();
     threadCount_ = static_cast<int>(std::min(std::max(hw * 2u, 4u), 32u));
@@ -685,29 +918,19 @@ void LanServer::Stop()
     for (auto& w : workers_)
         if (w.joinable()) w.join();
     workers_.clear();
+
+    // Release TLS credentials acquired at Start()
+    if (tlsCredHandle_) {
+        FreeCredentialsHandle(static_cast<CredHandle*>(tlsCredHandle_));
+        delete static_cast<CredHandle*>(tlsCredHandle_);
+        tlsCredHandle_ = nullptr;
+    }
+    tlsEnabled_ = false;
 }
 
 std::string LanServer::LocalIp() const
 {
-    // Connect a dummy UDP socket to 8.8.8.8 to discover the LAN interface IP
-    WSADATA wsa;
-    WSAStartup(MAKEWORD(2, 2), &wsa);
-    SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s == INVALID_SOCKET) { WSACleanup(); return "127.0.0.1"; }
-
-    sockaddr_in remote = {};
-    remote.sin_family = AF_INET;
-    remote.sin_port   = htons(80);
-    inet_pton(AF_INET, "8.8.8.8", &remote.sin_addr);
-    connect(s, (sockaddr*)&remote, sizeof(remote));
-
-    sockaddr_in local = {};
-    int len = sizeof(local);
-    getsockname(s, (sockaddr*)&local, &len);
-    closesocket(s);
-    WSACleanup();
-
-    char ip[INET_ADDRSTRLEN] = "127.0.0.1";
-    inet_ntop(AF_INET, &local.sin_addr, ip, sizeof(ip));
-    return std::string(ip);
+    // Use DHCP lease info from the OS — more accurate than the dummy-UDP-connect trick
+    AdapterInfo ai = GetPrimaryAdapter();
+    return ai.isConnected ? ai.ip : "127.0.0.1";
 }

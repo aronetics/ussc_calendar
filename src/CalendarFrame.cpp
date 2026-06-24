@@ -16,6 +16,7 @@
 #include "LanServer.h"
 #include "LanClient.h"
 #include "License.h"
+#include "NetworkInfo.h"
 #ifdef _WIN32
 #  include <wx/stdpaths.h>
 #endif
@@ -33,7 +34,8 @@ enum {
     ID_MENU_ALLIANCE_REPORT,
     ID_MENU_NETWORK,
     ID_MENU_LICENSE,
-    ID_TIMER_SYNC = wxID_HIGHEST + 90,
+    ID_TIMER_SYNC     = wxID_HIGHEST + 90,
+    ID_TIMER_NETINFO  = wxID_HIGHEST + 91,
 
     ID_BTN_TODAY   = wxID_HIGHEST + 1,
     ID_BTN_PREV,
@@ -72,6 +74,7 @@ wxBEGIN_EVENT_TABLE(CalendarFrame, wxFrame)
     EVT_MENU(ID_MENU_NETWORK,           CalendarFrame::OnMenuNetworkSettings)
     EVT_MENU(ID_MENU_LICENSE,           CalendarFrame::OnMenuLicense)
     EVT_TIMER(ID_TIMER_SYNC,            CalendarFrame::OnSyncTimer)
+    EVT_TIMER(ID_TIMER_NETINFO,         CalendarFrame::OnNetInfoTimer)
     EVT_KEY_DOWN(CalendarFrame::OnKeyDown)
 wxEND_EVENT_TABLE()
 
@@ -80,7 +83,8 @@ wxEND_EVENT_TABLE()
 CalendarFrame::CalendarFrame()
     : wxFrame(nullptr, wxID_ANY, "USSC Calendar",
               wxDefaultPosition, wxSize(1280, 800))
-    , syncTimer_(this, ID_TIMER_SYNC)
+    , syncTimer_   (this, ID_TIMER_SYNC)
+    , netInfoTimer_(this, ID_TIMER_NETINFO)
 {
     SetMinSize(wxSize(800, 600));
     SetIcon(wxIcon(wxT("#1"), wxBITMAP_TYPE_ICO_RESOURCE));
@@ -175,6 +179,7 @@ CalendarFrame::CalendarFrame()
 CalendarFrame::~CalendarFrame()
 {
     syncTimer_.Stop();
+    netInfoTimer_.Stop();
     if (lanServer_) { lanServer_->Stop(); delete lanServer_; }
     delete lanClient_;
 }
@@ -763,6 +768,7 @@ void CalendarFrame::OnMenuAbout(wxCommandEvent&)
 void CalendarFrame::ApplyNetworkMode(const NetworkConfig& cfg)
 {
     syncTimer_.Stop();
+    netInfoTimer_.Stop();
 
     // Tear down any existing server/client
     if (lanServer_) { lanServer_->Stop(); delete lanServer_; lanServer_ = nullptr; }
@@ -793,10 +799,14 @@ void CalendarFrame::ApplyNetworkMode(const NetworkConfig& cfg)
             lanServer_ = nullptr;
             return;
         }
-        // Show the server IP in the title bar
-        std::string ip = lanServer_->LocalIp();
-        SetTitle(wxString::Format("USSC Calendar — SERVER  %s:%d",
-                                   wxString::FromUTF8(ip), cfg.port));
+        // Show server IP and TLS status in the title bar
+        std::string ip  = lanServer_->LocalIp();
+        std::string tls = lanServer_->IsTlsEnabled() ? " [TLS]" : " [plaintext]";
+        SetTitle(wxString::Format("USSC Calendar — SERVER  %s:%d%s",
+                                   wxString::FromUTF8(ip), cfg.port,
+                                   wxString::FromUTF8(tls)));
+        // Refresh the IP/cert display every 5 minutes (DHCP lease may change)
+        netInfoTimer_.Start(300000);
 
     } else if (cfg.mode == NetworkMode::Client) {
         lanClient_ = new LanClient();
@@ -845,6 +855,17 @@ void CalendarFrame::OnSyncTimer(wxTimerEvent&)
     store_.Load();
     RefreshAllViews();
     if (miniCal_) miniCal_->Refresh();
+}
+
+void CalendarFrame::OnNetInfoTimer(wxTimerEvent&)
+{
+    if (!lanServer_ || !lanServer_->IsRunning()) return;
+    // Re-query the DHCP-assigned IP so the title stays correct after a lease renewal
+    std::string ip  = lanServer_->LocalIp();
+    std::string tls = lanServer_->IsTlsEnabled() ? " [TLS]" : " [plaintext]";
+    SetTitle(wxString::Format("USSC Calendar — SERVER  %s:%d%s",
+                               wxString::FromUTF8(ip), lanServer_->Port(),
+                               wxString::FromUTF8(tls)));
 }
 
 void CalendarFrame::OnMenuNetworkSettings(wxCommandEvent&)

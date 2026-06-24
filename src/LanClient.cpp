@@ -32,14 +32,23 @@ std::string LanClient::Request(const std::string& method,
 
     std::wstring wPath(path.begin(), path.end());
     std::wstring wMethod(method.begin(), method.end());
+    DWORD tlsFlag = useTls_ ? WINHTTP_FLAG_SECURE : 0;
     HINTERNET hRequest = WinHttpOpenRequest(
         hConnect, wMethod.c_str(), wPath.c_str(),
-        nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
+        nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, tlsFlag);
     if (!hRequest) {
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
         err = "WinHttpOpenRequest failed";
         return {};
+    }
+
+    // When using TLS via IP address: verify cert chain (trust AD CS) but
+    // ignore CN/SAN mismatch (server cert has FQDN, client connects by IP).
+    if (useTls_) {
+        DWORD secFlags = SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
+        WinHttpSetOption(hRequest, WINHTTP_OPTION_SECURITY_FLAGS,
+                         &secFlags, sizeof(secFlags));
     }
 
     // Build headers
@@ -83,15 +92,33 @@ std::string LanClient::Request(const std::string& method,
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
+bool LanClient::Probe(std::string& err)
+{
+    std::string resp = Request("GET", "/api/info", {}, err);
+    if (!resp.empty() && resp.find("USSC") != std::string::npos) {
+        connected_ = true;
+        return true;
+    }
+    return false;
+}
+
 bool LanClient::Connect(const std::string& host, int port, std::string& err)
 {
     host_ = host;
     port_ = port;
-    // Probe the server info endpoint
-    std::string resp = Request("GET", "/api/info", {}, err);
-    connected_ = !resp.empty() && resp.find("USSC") != std::string::npos;
-    if (!connected_ && err.empty()) err = "Server not responding at " + host + ":" + std::to_string(port);
-    return connected_;
+
+    // Try HTTPS first (AD CS machine cert present on domain-joined hosts).
+    // Fall back to HTTP for non-domain or dev environments.
+    useTls_ = true;
+    err.clear();
+    if (Probe(err)) return true;
+
+    useTls_ = false;
+    err.clear();
+    if (Probe(err)) return true;
+
+    if (err.empty()) err = "Server not responding at " + host + ":" + std::to_string(port);
+    return false;
 }
 
 bool LanClient::Auth(const std::string& user, const std::string& pass, std::string& err)

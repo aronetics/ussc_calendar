@@ -29,9 +29,10 @@ public:
     bool Start(int port, std::string& err);
     void Stop();
 
-    bool        IsRunning()  const { return running_.load(); }
-    int         Port()       const { return port_; }
-    std::string LocalIp()    const;
+    bool        IsRunning()   const { return running_.load(); }
+    bool        IsTlsEnabled()const { return tlsEnabled_; }
+    int         Port()        const { return port_; }
+    std::string LocalIp()     const;
 
     // Called by CalendarFrame's UI thread to signal connected clients to refresh.
     // (Currently informational; clients poll on a timer.)
@@ -78,7 +79,11 @@ private:
 
     std::thread         acceptThread_;
     std::atomic<bool>   running_{false};
-    uintptr_t           listenSock_ = (uintptr_t)~0ull;
-    int                 port_       = 7743;
-    int                 threadCount_= 0;
+    uintptr_t           listenSock_     = (uintptr_t)~0ull;
+    int                 port_           = 7743;
+    int                 threadCount_    = 0;
+
+    // TLS — heap-allocated CredHandle (avoid pulling sspi.h into header)
+    bool  tlsEnabled_    = false;
+    void* tlsCredHandle_ = nullptr;
 };

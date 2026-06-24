@@ -30,6 +30,8 @@ private:
     wxRadioButton* rbServer_     = nullptr;
     wxRadioButton* rbClient_     = nullptr;
     wxStaticText*  licWarn_      = nullptr;
+    wxStaticText*  netInfoLabel_ = nullptr;   // adapter IP / DHCP / domain
+    wxStaticText*  certLabel_    = nullptr;   // AD CS cert status
     wxSpinCtrl*    portCtrl_     = nullptr;
     wxTextCtrl*    hostCtrl_     = nullptr;
     wxSpinCtrl*    cPortCtrl_    = nullptr;

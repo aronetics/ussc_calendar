@@ -1,5 +1,6 @@
 #include "NetworkModeDialog.h"
 #include "License.h"
+#include "NetworkInfo.h"
 #include <wx/stdpaths.h>
 #include <wx/spinctrl.h>
 #include <wx/statline.h>
@@ -73,12 +74,16 @@ wxEND_EVENT_TABLE()
 
 NetworkModeDialog::NetworkModeDialog(wxWindow* parent, const NetworkConfig& current)
     : wxDialog(parent, wxID_ANY, "Network Mode",
-               wxDefaultPosition, wxSize(440, 400),
+               wxDefaultPosition, wxSize(460, 500),
                wxDEFAULT_DIALOG_STYLE)
     , result_(current)
 {
     LicenseInfo li = License::Load();
     bool lanOk     = License::AllowsLanServer(li);
+
+    // Query LAN state (DHCP and AD CS cert) at open time
+    AdapterInfo   adapter = GetPrimaryAdapter();
+    MachineCredential mc  = FindMachineCert();
 
     auto* outer = new wxBoxSizer(wxVERTICAL);
 
@@ -102,6 +107,43 @@ NetworkModeDialog::NetworkModeDialog(wxWindow* parent, const NetworkConfig& curr
     licWarn_->SetForegroundColour(licCol);
     licWarn_->SetFont(licWarn_->GetFont().Italic());
     body->Add(licWarn_, 0, wxEXPAND | wxALL, 10);
+
+    // ── LAN / DHCP info ──────────────────────────────────────────────────
+    {
+        std::string netLine;
+        if (adapter.isConnected) {
+            netLine  = "LAN: " + adapter.ip;
+            if (!adapter.subnet.empty())    netLine += " / " + adapter.subnet;
+            if (!adapter.gateway.empty())   netLine += "  GW " + adapter.gateway;
+            if (!adapter.dhcpServer.empty())netLine += "  DHCP " + adapter.dhcpServer;
+            if (!adapter.dnsSuffix.empty()) netLine += "  [" + adapter.dnsSuffix + "]";
+        } else {
+            netLine = "LAN: no connected adapter detected";
+        }
+        netInfoLabel_ = new wxStaticText(this, wxID_ANY, netLine);
+        netInfoLabel_->SetForegroundColour(wxColour(30, 80, 150));
+        netInfoLabel_->SetFont(netInfoLabel_->GetFont().Smaller());
+        body->Add(netInfoLabel_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+    }
+
+    // ── AD CS certificate status ─────────────────────────────────────────
+    {
+        std::string certLine;
+        if (mc.found) {
+            certLine = "TLS cert: " + mc.subjectCN +
+                       "  (issued by " + mc.issuerCN +
+                       ", valid until " + mc.validUntil + ")";
+            FreeMachineCert(mc);
+        } else {
+            certLine = "TLS cert: none found in MY store — server will use plaintext HTTP";
+        }
+        certLabel_ = new wxStaticText(this, wxID_ANY, certLine);
+        certLabel_->SetForegroundColour(mc.found ? wxColour(0, 110, 0) : wxColour(130, 90, 0));
+        certLabel_->SetFont(certLabel_->GetFont().Smaller());
+        certLabel_->Wrap(420);
+        body->Add(certLabel_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+    }
+
     body->Add(new wxStaticLine(this), 0, wxEXPAND | wxLEFT | wxRIGHT, 10);
 
     // ── Standalone ───────────────────────────────────────────────────────

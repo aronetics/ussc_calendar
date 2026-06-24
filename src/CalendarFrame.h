@@ -70,7 +70,8 @@ private:
 
     // LAN server/client lifecycle
     void ApplyNetworkMode(const NetworkConfig& cfg);
-    void OnSyncTimer(wxTimerEvent&);
+    void OnSyncTimer    (wxTimerEvent&);
+    void OnNetInfoTimer (wxTimerEvent&);
 
     void OnNLAdd(wxCommandEvent&);
 
@@ -96,10 +97,11 @@ private:
     ViewMode            viewMode_ = ViewMode::Month;
 
     // LAN networking
-    LanServer*    lanServer_ = nullptr;
-    LanClient*    lanClient_ = nullptr;
+    LanServer*    lanServer_    = nullptr;
+    LanClient*    lanClient_    = nullptr;
     NetworkConfig netCfg_;
     wxTimer       syncTimer_;
+    wxTimer       netInfoTimer_;
     wxDateTime    displayDate_;
 
     wxPanel*      headerPanel_   = nullptr;
