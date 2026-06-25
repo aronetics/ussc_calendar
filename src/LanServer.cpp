@@ -852,8 +852,14 @@ bool LanServer::Start(int port, std::string& err)
     port_ = port;
 
     // Try to acquire TLS credentials from the AD CS machine certificate store.
-    // Non-fatal: if no valid Server Authentication cert is found, fall back to plaintext.
+    // If the store is empty, attempt CertEnroll enrollment from the domain CA first.
+    // Both steps are non-fatal: if TLS setup ultimately fails we bind in plaintext.
     MachineCredential mc = FindMachineCert();
+    if (!mc.found) {
+        std::string enrollMsg;
+        if (TryEnrollMachineCert(enrollMsg))
+            mc = FindMachineCert();   // re-query now that cert is in LocalMachine\My
+    }
     if (mc.found && mc.certContext) {
         PCCERT_CONTEXT pCert = static_cast<PCCERT_CONTEXT>(mc.certContext);
         SCHANNEL_CRED sc     = {};

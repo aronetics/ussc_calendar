@@ -28,5 +28,9 @@ std::vector<AdapterInfo> GetAllAdapters();
 AdapterInfo              GetPrimaryAdapter();    // first non-loopback, connected, DHCP adapter
 MachineCredential        FindMachineCert();      // Server Authentication EKU, longest validity
 void                     FreeMachineCert(MachineCredential& mc); // safe even when !mc.found
+// Request a Server Authentication cert from the domain AD CS CA via CertEnroll COM.
+// Returns true and sets statusOut on success; cert is written to LocalMachine\My.
+// Non-fatal: returns false if domain CA is unreachable or machine is not domain-joined.
+bool                     TryEnrollMachineCert(std::string& statusOut);
 std::string              GetMachineFqdn();       // e.g. "ops01.domain.mil"
 std::string              GetDomainName();        // e.g. "domain.mil"

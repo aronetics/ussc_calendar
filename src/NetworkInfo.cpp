@@ -198,6 +198,63 @@ void FreeMachineCert(MachineCredential& mc)
     mc.found = false;
 }
 
+// ── AD CS enrollment (CertEnroll COM) ─────────────────────────────────────────
+// certenroll.h needs COM/OLE2 types; include objbase.h before it.
+#include <objbase.h>
+#include <certenroll.h>
+
+bool TryEnrollMachineCert(std::string& statusOut)
+{
+    // Initialise COM for this call (STA, matching the wx UI thread).
+    // S_FALSE = already initialised by caller — do not uninit.
+    HRESULT hrCo  = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    bool didInit  = (hrCo == S_OK);
+
+    // Template names to try in preference order.
+    // "WebServer" carries Server Authentication EKU and allows the app to use
+    // the cert for HTTPS.  "Machine"/"Computer" are the default computer
+    // templates and also carry Server Authentication on most AD CS configs.
+    static const wchar_t* kTemplates[] = {
+        L"WebServer", L"Machine", L"Computer", nullptr
+    };
+
+    bool enrolled = false;
+    for (int ti = 0; kTemplates[ti] && !enrolled; ++ti) {
+        IX509Enrollment* pEnroll = nullptr;
+        HRESULT hr = CoCreateInstance(
+            __uuidof(CX509Enrollment), nullptr, CLSCTX_INPROC_SERVER,
+            __uuidof(IX509Enrollment), (void**)&pEnroll);
+        if (FAILED(hr)) {
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "CX509Enrollment unavailable (0x%08X)", (unsigned)hr);
+            statusOut = buf;
+            break;     // COM server not registered — no point retrying other templates
+        }
+
+        BSTR bsTmpl = SysAllocString(kTemplates[ti]);
+        hr = pEnroll->InitializeFromTemplateName(ContextMachine, bsTmpl);
+        SysFreeString(bsTmpl);
+
+        if (SUCCEEDED(hr)) {
+            hr = pEnroll->Enroll();
+            if (SUCCEEDED(hr)) {
+                char narrow[64] = {};
+                WideCharToMultiByte(CP_UTF8, 0, kTemplates[ti], -1,
+                                    narrow, (int)sizeof(narrow), nullptr, nullptr);
+                statusOut = std::string("AD CS cert enrolled (template: ") + narrow + ")";
+                enrolled  = true;
+            }
+        }
+        pEnroll->Release();
+    }
+
+    if (!enrolled && statusOut.empty())
+        statusOut = "AD CS: no domain CA reachable or no applicable template";
+
+    if (didInit) CoUninitialize();
+    return enrolled;
+}
+
 // ── Machine identity ──────────────────────────────────────────────────────────
 
 std::string GetMachineFqdn()
