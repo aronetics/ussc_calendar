@@ -24,6 +24,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 
 [Files]
+Source: "redist\vc_redist.x64.exe";                  DestDir: "{tmp}"; Flags: deleteafterinstall
 Source: "out\Release\ussc_calendar.exe";              DestDir: "{app}"; Flags: ignoreversion
 Source: "out\Release\wxbase331u_vc_x64_custom.dll";   DestDir: "{app}"; Flags: ignoreversion
 Source: "out\Release\wxmsw331u_core_vc_x64_custom.dll"; DestDir: "{app}"; Flags: ignoreversion
@@ -44,4 +45,6 @@ Name: "{group}\Uninstall USSC Calendar"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\USSC Calendar"; Filename: "{app}\ussc_calendar.exe"; Tasks: desktopicon
 
 [Run]
+Filename: "{tmp}\vc_redist.x64.exe"; Parameters: "/install /quiet /norestart"; \
+    StatusMsg: "Installing Visual C++ Runtime..."; Flags: waituntilterminated
 Filename: "{app}\ussc_calendar.exe"; Description: "Launch USSC Calendar"; Flags: nowait postinstall skipifsilent
