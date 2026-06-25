@@ -3,6 +3,7 @@
 #include <wx/scrolwin.h>
 #include <wx/datetime.h>
 #include "CalendarEvent.h"
+#include "UserStore.h"
 #include <functional>
 #include <vector>
 
@@ -10,17 +11,20 @@ class EventStore;
 
 class DayView : public wxScrolledWindow {
 public:
-    DayView(wxWindow* parent, EventStore* store);
+    DayView(wxWindow* parent, EventStore* store, UserStore* users = nullptr);
     void SetDate(const wxDateTime& d);
     wxDateTime GetDate() const { return date_; }
     void Refresh();
 
     std::function<void(const wxDateTime&)>  OnSlotActivated;
     std::function<void(const std::string&)> OnEventActivated;
+    std::function<void(const wxDateTime&)>  OnNewEventRequested;
 
 private:
     void OnPaint(wxPaintEvent&);
     void OnLeftDClick(wxMouseEvent&);
+    void OnRightUp(wxMouseEvent&);
+    void OnMotion(wxMouseEvent&);
     void OnTimer(wxTimerEvent&);
     void OnSize(wxSizeEvent&);
 
@@ -30,6 +34,7 @@ private:
     void DrawCurrentTimeLine(wxDC& dc, int x, int w, int baseY);
 
     EventStore* store_;
+    UserStore*  users_;
     wxDateTime  date_;
     wxDateTime  today_;
     wxTimer     timer_;
@@ -39,7 +44,7 @@ private:
     static const int HEADER_H   = 56;
     static const int ALLDAY_H   = 30;
 
-    struct ERect { wxRect rect; std::string id; };
+    struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; };
     std::vector<ERect> eRects_;
 
     wxDECLARE_EVENT_TABLE();

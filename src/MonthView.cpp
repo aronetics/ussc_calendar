@@ -6,6 +6,8 @@
 wxBEGIN_EVENT_TABLE(MonthView, wxPanel)
     EVT_PAINT(MonthView::OnPaint)
     EVT_LEFT_DCLICK(MonthView::OnLeftDClick)
+    EVT_RIGHT_UP(MonthView::OnRightUp)
+    EVT_MOTION(MonthView::OnMotion)
     EVT_SIZE(MonthView::OnSize)
 wxEND_EVENT_TABLE()
 
@@ -14,9 +16,10 @@ static const wxColour DAY_GRAY  (0x70, 0x75, 0x7A);
 static const wxColour OUT_GRAY  (0xBD, 0xBF, 0xC4);
 static const wxColour BG_WHITE  (0xFF, 0xFF, 0xFF);
 
-MonthView::MonthView(wxWindow* parent, EventStore* store)
+MonthView::MonthView(wxWindow* parent, EventStore* store, UserStore* users)
     : wxPanel(parent, wxID_ANY),
-      store_(store)
+      store_(store),
+      users_(users)
 {
     today_   = wxDateTime::Today();
     display_ = today_;
@@ -68,8 +71,9 @@ void MonthView::DrawEventPill(wxDC& dc, const CalendarEvent& e,
 
     // Record for hit testing
     ERect er;
-    er.rect = pr;
-    er.id   = e.id;
+    er.rect         = pr;
+    er.id           = e.id;
+    er.participants = e.participants;
     eRects_.push_back(er);
 
     // Draw rounded pill
@@ -205,6 +209,32 @@ void MonthView::OnPaint(wxPaintEvent&)
     dc.DrawLine(0, hdrH, 0, h);
 }
 
+void MonthView::OnRightUp(wxMouseEvent& e)
+{
+    wxPoint pt = e.GetPosition();
+
+    std::string eid = HitTestEvent(pt);
+    wxMenu menu;
+    if (!eid.empty()) {
+        menu.Append(wxID_EDIT, "Edit Event");
+        menu.AppendSeparator();
+        menu.Append(wxID_DELETE, "Delete Event");
+        int choice = GetPopupMenuSelectionFromUser(menu);
+        if (choice == wxID_EDIT || choice == wxID_DELETE) {
+            if (OnEventActivated) OnEventActivated(eid);
+        }
+    } else {
+        wxDateTime d = HitTestDay(pt);
+        if (!d.IsValid()) return;
+        menu.Append(wxID_NEW, wxString::Format("New Event on %s %d",
+            wxDateTime::GetMonthName(d.GetMonth(), wxDateTime::Name_Abbr),
+            d.GetDay()));
+        if (GetPopupMenuSelectionFromUser(menu) == wxID_NEW) {
+            if (OnNewEventRequested) OnNewEventRequested(d);
+        }
+    }
+}
+
 void MonthView::OnLeftDClick(wxMouseEvent& e)
 {
     wxPoint pt = e.GetPosition();
@@ -236,4 +266,26 @@ std::string MonthView::HitTestEvent(const wxPoint& pt) const
         if (er.rect.Contains(pt)) return er.id;
     }
     return "";
+}
+
+void MonthView::OnMotion(wxMouseEvent& e)
+{
+    e.Skip();
+    wxPoint pt = e.GetPosition();
+    for (const auto& er : eRects_) {
+        if (!er.rect.Contains(pt)) continue;
+        if (er.participants.empty()) {
+            SetToolTip(wxEmptyString);
+            return;
+        }
+        wxString tip;
+        for (const auto& pid : er.participants) {
+            const UserEntry* u = users_ ? users_->FindUser(pid) : nullptr;
+            if (!tip.IsEmpty()) tip += "\n";
+            tip += u ? wxString::FromUTF8(u->name) : wxString::FromUTF8(pid);
+        }
+        SetToolTip(tip);
+        return;
+    }
+    SetToolTip(wxEmptyString);
 }

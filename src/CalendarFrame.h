@@ -5,8 +5,15 @@
 #include "UserStore.h"
 #include "CalendarSourceStore.h"
 #include "CalendarConnector.h"
+#include "SatelliteStore.h"
+#include "GroundStationStore.h"
+#include "TleStore.h"
+#include "NetworkModeDialog.h"
 #include <memory>
 #include <string>
+
+class LanServer;
+class LanClient;
 
 class MiniCalendar;
 class MonthView;
@@ -15,6 +22,8 @@ class DayView;
 class LoginPanel;
 class UserPanel;
 class CalendarSourcePanel;
+class SatellitePanel;
+class PassPredictPanel;
 
 enum class ViewMode { Month, Week, TwoWeek, Day };
 
@@ -29,9 +38,11 @@ private:
     wxPanel* BuildSidebar();   // contains loginPanel_ + calSidebar_ stacked
     wxPanel* BuildCalSidebar();
     wxPanel* BuildViewArea();
+    SatellitePanel* BuildSatellitePanel();
 
-    // Login
+    // Login / logout
     void OnLoginSuccess(const std::string& username);
+    void OnLogout(wxCommandEvent&);
 
     // Navigation & view switching
     void NavigatePrev(wxCommandEvent&);
@@ -51,8 +62,18 @@ private:
     void OnMenuNewEvent(wxCommandEvent&);
     void OnMenuAccounts(wxCommandEvent&);
     void OnMenuExportICS(wxCommandEvent&);
+    void OnMenuAllianceReport(wxCommandEvent&);
+    void OnMenuNetworkSettings(wxCommandEvent&);
+    void OnMenuLicense(wxCommandEvent&);
     void OnMenuQuit(wxCommandEvent&);
     void OnMenuAbout(wxCommandEvent&);
+
+    // LAN server/client lifecycle
+    void ApplyNetworkMode(const NetworkConfig& cfg);
+    void OnSyncTimer    (wxTimerEvent&);
+    void OnNetInfoTimer (wxTimerEvent&);
+
+    void OnNLAdd(wxCommandEvent&);
 
     void LoadConnectorSettings();
     void SaveConnectorSettings() const;
@@ -70,7 +91,17 @@ private:
     UserStore           userStore_;
     CalendarSourceStore sourceStore_;
     ConnectorSettings   connectorSettings_;
+    SatelliteStore      satStore_;
+    GroundStationStore  gsStore_;
+    TleStore            tleStore_;
     ViewMode            viewMode_ = ViewMode::Month;
+
+    // LAN networking
+    LanServer*    lanServer_    = nullptr;
+    LanClient*    lanClient_    = nullptr;
+    NetworkConfig netCfg_;
+    wxTimer       syncTimer_;
+    wxTimer       netInfoTimer_;
     wxDateTime    displayDate_;
 
     wxPanel*      headerPanel_   = nullptr;
@@ -79,15 +110,24 @@ private:
     wxPanel*      calSidebar_    = nullptr;  // mini-cal + my-cals (shown after auth)
     wxPanel*      viewContainer_ = nullptr;
 
-    wxStaticText* userLabel_  = nullptr;     // shows "Signed in as …" in header
+    wxButton*     fabBtn_      = nullptr;      // hidden pre-login
+    wxStaticText* calTitle_    = nullptr;     // "Calendar" label — hidden pre-login
+    wxButton*     btnToday_    = nullptr;     // hidden pre-login
+    wxButton*     btnPrev_     = nullptr;     // hidden pre-login
+    wxButton*     btnNext_     = nullptr;     // hidden pre-login
+    wxStaticText* userLabel_   = nullptr;     // shows "Signed in as …" in header
+    wxButton*     logoutBtn_   = nullptr;
     std::string   activeUser_;
 
-    MiniCalendar* miniCal_   = nullptr;
+    MiniCalendar* miniCal_          = nullptr;
+    wxButton*     sidebarActionBtn_ = nullptr;
     MonthView*    monthView_ = nullptr;
     WeekView*     weekView_  = nullptr;
     DayView*      dayView_   = nullptr;
     UserPanel*          userPanel_    = nullptr;
-    CalendarSourcePanel* srcPanel_    = nullptr;
+    CalendarSourcePanel* srcPanel_   = nullptr;
+    SatellitePanel*     satPanel_    = nullptr;
+    PassPredictPanel*   passPanel_   = nullptr;
 
     wxStaticText* headerLabel_ = nullptr;
 

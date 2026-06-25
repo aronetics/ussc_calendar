@@ -2,6 +2,7 @@
 #include <wx/wx.h>
 #include <wx/datetime.h>
 #include "CalendarEvent.h"
+#include "UserStore.h"
 #include <functional>
 #include <vector>
 
@@ -9,17 +10,20 @@ class EventStore;
 
 class MonthView : public wxPanel {
 public:
-    MonthView(wxWindow* parent, EventStore* store);
+    MonthView(wxWindow* parent, EventStore* store, UserStore* users = nullptr);
     void SetDate(const wxDateTime& date);
     wxDateTime GetDate() const { return display_; }
     void Refresh() { wxPanel::Refresh(); }
 
     std::function<void(const wxDateTime&)>    OnDayActivated;
     std::function<void(const std::string&)>   OnEventActivated;
+    std::function<void(const wxDateTime&)>    OnNewEventRequested;
 
 private:
     void OnPaint(wxPaintEvent&);
     void OnLeftDClick(wxMouseEvent&);
+    void OnRightUp(wxMouseEvent&);
+    void OnMotion(wxMouseEvent&);
     void OnSize(wxSizeEvent&);
     void DrawHeader(wxDC& dc, const wxRect& r);
     void DrawDayCell(wxDC& dc, const wxRect& r, const wxDateTime& d, bool inMonth);
@@ -28,6 +32,7 @@ private:
     std::string HitTestEvent(const wxPoint& pt) const;
 
     EventStore*  store_;
+    UserStore*   users_;
     wxDateTime   display_;
     wxDateTime   today_;
 
@@ -36,7 +41,7 @@ private:
     struct Cell { wxRect rect; wxDateTime date; bool inMonth; };
     std::vector<Cell> cells_;
 
-    struct ERect { wxRect rect; std::string id; };
+    struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; };
     std::vector<ERect> eRects_;
 
     wxDECLARE_EVENT_TABLE();

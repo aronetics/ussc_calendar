@@ -12,6 +12,13 @@ public:
     explicit LoginPanel(wxWindow* parent);
 
     std::function<void(const std::string& username)> OnLoginSuccess;
+    // When set, overrides local auth: fn(user, pass) → true if server accepts
+    std::function<bool(const std::string&, const std::string&)> RemoteAuth;
+
+    // Public credential check — used by LanServer to validate incoming auth requests
+    bool Validate(const std::string& user, const std::string& pass);
+
+    void Reset();   // clear password and error; called on logout
 
 private:
     // UI events

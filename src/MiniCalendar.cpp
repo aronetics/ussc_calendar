@@ -186,6 +186,11 @@ void MiniCalendar::OnPaint(wxPaintEvent&)
 
 void MiniCalendar::OnLeftDown(wxMouseEvent& e)
 {
+    // Rebuild cells if not yet painted at current size
+    if (cells_.empty()) {
+        int pw = gridPanel_->GetClientSize().GetWidth();
+        BuildCells(display_, pw, cells_);
+    }
     wxPoint pt = e.GetPosition();
     wxDateTime hit = HitTest(pt);
     if (hit.IsValid()) {
