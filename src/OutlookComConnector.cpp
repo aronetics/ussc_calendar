@@ -8,8 +8,12 @@
 // ── COM dispatch helpers ──────────────────────────────────────────────────────
 
 static HRESULT ComGetProperty(IDispatch* pObj, const wchar_t* name,
-                               VARIANT* pResult)
+                               _Out_ VARIANT* pResult)
 {
+    // Initialize before any early return — callers always VariantClear() pResult,
+    // which is undefined behavior on an uninitialized VARIANT.
+    VariantInit(pResult);
+
     DISPID dispId = 0;
     LPOLESTR member = const_cast<LPOLESTR>(name);
     HRESULT hr = pObj->GetIDsOfNames(IID_NULL, &member, 1,
@@ -17,14 +21,15 @@ static HRESULT ComGetProperty(IDispatch* pObj, const wchar_t* name,
     if (FAILED(hr)) return hr;
 
     DISPPARAMS dp = {};
-    VariantInit(pResult);
     return pObj->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
                         DISPATCH_PROPERTYGET, &dp, pResult, nullptr, nullptr);
 }
 
 static HRESULT ComCallMethod(IDispatch* pObj, const wchar_t* name,
-                              VARIANT* args, int argCount, VARIANT* pResult)
+                              VARIANT* args, int argCount, _Out_opt_ VARIANT* pResult)
 {
+    if (pResult) VariantInit(pResult);
+
     DISPID dispId = 0;
     LPOLESTR member = const_cast<LPOLESTR>(name);
     HRESULT hr = pObj->GetIDsOfNames(IID_NULL, &member, 1,
@@ -35,7 +40,6 @@ static HRESULT ComCallMethod(IDispatch* pObj, const wchar_t* name,
     dp.cArgs = argCount;
     dp.rgvarg = args;
 
-    if (pResult) VariantInit(pResult);
     return pObj->Invoke(dispId, IID_NULL, LOCALE_USER_DEFAULT,
                         DISPATCH_METHOD, &dp, pResult, nullptr, nullptr);
 }
@@ -82,7 +86,12 @@ static wxDateTime ParseOutlookDate(const std::wstring& ws)
 
 bool OutlookComConnector::Connect(std::string& errorMsg)
 {
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    HRESULT hrInit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    // S_FALSE/RPC_E_CHANGED_MODE just mean COM is already initialized on this thread.
+    if (FAILED(hrInit) && hrInit != RPC_E_CHANGED_MODE) {
+        errorMsg = "Failed to initialize COM.";
+        return false;
+    }
 
     CLSID clsid;
     HRESULT hr = CLSIDFromProgID(L"Outlook.Application", &clsid);
@@ -116,10 +125,17 @@ std::vector<CalendarEvent> OutlookComConnector::FetchEvents(
 {
     std::vector<CalendarEvent> results;
 
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    HRESULT hrInit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(hrInit) && hrInit != RPC_E_CHANGED_MODE) {
+        errorMsg = "Failed to initialize COM.";
+        return results;
+    }
 
     CLSID clsid;
-    CLSIDFromProgID(L"Outlook.Application", &clsid);
+    if (FAILED(CLSIDFromProgID(L"Outlook.Application", &clsid))) {
+        errorMsg = "Outlook is not installed or not registered on this system.";
+        return results;
+    }
 
     IDispatch* pApp = nullptr;
     HRESULT hr = CoCreateInstance(clsid, nullptr, CLSCTX_LOCAL_SERVER,
@@ -210,14 +226,14 @@ std::vector<CalendarEvent> OutlookComConnector::FetchEvents(
 
         VARIANT vStart; ComGetProperty(pItem, L"Start", &vStart);
         VARIANT vStartStr; VariantInit(&vStartStr);
-        VariantChangeType(&vStartStr, &vStart, 0, VT_BSTR);
-        ev.start = ParseOutlookDate(VariantToWString(vStartStr));
+        if (SUCCEEDED(VariantChangeType(&vStartStr, &vStart, 0, VT_BSTR)))
+            ev.start = ParseOutlookDate(VariantToWString(vStartStr));
         VariantClear(&vStart); VariantClear(&vStartStr);
 
         VARIANT vEnd; ComGetProperty(pItem, L"End", &vEnd);
         VARIANT vEndStr; VariantInit(&vEndStr);
-        VariantChangeType(&vEndStr, &vEnd, 0, VT_BSTR);
-        ev.end = ParseOutlookDate(VariantToWString(vEndStr));
+        if (SUCCEEDED(VariantChangeType(&vEndStr, &vEnd, 0, VT_BSTR)))
+            ev.end = ParseOutlookDate(VariantToWString(vEndStr));
         VariantClear(&vEnd); VariantClear(&vEndStr);
 
         VARIANT vAllDay; ComGetProperty(pItem, L"AllDayEvent", &vAllDay);

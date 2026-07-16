@@ -33,7 +33,7 @@ private:
     wxDateTime  today_;
 
 public:
-    struct Cell { wxRect rect; wxDateTime date; bool valid; };
+    struct Cell { wxRect rect; wxDateTime date; bool valid = false; };
 private:
     std::vector<Cell> cells_;
 

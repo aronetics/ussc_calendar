@@ -38,7 +38,7 @@ private:
 
     static const int HEADER_H = 24;
 
-    struct Cell { wxRect rect; wxDateTime date; bool inMonth; };
+    struct Cell { wxRect rect; wxDateTime date; bool inMonth = false; };
     std::vector<Cell> cells_;
 
     struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; };

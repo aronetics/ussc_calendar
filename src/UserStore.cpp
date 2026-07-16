@@ -52,7 +52,8 @@ static wxColour HexColor(const std::string& hex)
 {
     if (hex.size() < 7) return wxColour(26, 115, 232);
     unsigned r = 0, g = 0, b = 0;
-    std::sscanf(hex.c_str() + 1, "%02x%02x%02x", &r, &g, &b);
+    if (std::sscanf(hex.c_str() + 1, "%02x%02x%02x", &r, &g, &b) != 3)
+        return wxColour(26, 115, 232);
     return wxColour(r, g, b);
 }
 

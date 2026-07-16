@@ -183,21 +183,26 @@ std::string LoginPanel::HashPassword(const std::string& password)
     DWORD hashLen = 0, cbData = 0;
     std::string result;
 
-    if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0))
+    if (!BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0)))
         return "";
 
-    BCryptGetProperty(hAlg, BCRYPT_HASH_LENGTH,
-                      reinterpret_cast<PBYTE>(&hashLen), sizeof(hashLen), &cbData, 0);
+    if (!BCRYPT_SUCCESS(BCryptGetProperty(hAlg, BCRYPT_HASH_LENGTH,
+                      reinterpret_cast<PBYTE>(&hashLen), sizeof(hashLen), &cbData, 0))) {
+        BCryptCloseAlgorithmProvider(hAlg, 0);
+        return "";
+    }
 
     std::vector<BYTE> hash(hashLen);
-    if (!BCryptCreateHash(hAlg, &hHash, nullptr, 0, nullptr, 0, 0)) {
-        BCryptHashData(hHash,
+    bool ok = false;
+    if (BCRYPT_SUCCESS(BCryptCreateHash(hAlg, &hHash, nullptr, 0, nullptr, 0, 0))) {
+        ok = BCRYPT_SUCCESS(BCryptHashData(hHash,
                        reinterpret_cast<PUCHAR>(const_cast<char*>(password.c_str())),
-                       static_cast<ULONG>(password.size()), 0);
-        BCryptFinishHash(hHash, hash.data(), hashLen, 0);
+                       static_cast<ULONG>(password.size()), 0))
+          && BCRYPT_SUCCESS(BCryptFinishHash(hHash, hash.data(), hashLen, 0));
         BCryptDestroyHash(hHash);
     }
     BCryptCloseAlgorithmProvider(hAlg, 0);
+    if (!ok) return "";
 
     char hex[3];
     for (BYTE b : hash) {

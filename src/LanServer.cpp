@@ -464,7 +464,9 @@ std::string LanServer::IssueToken(const std::string& user)
 {
     // 128 bits from the OS CSPRNG — not predictable from time or process state
     UCHAR bytes[16] = {};
-    BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    if (!BCRYPT_SUCCESS(BCryptGenRandom(nullptr, bytes, sizeof(bytes),
+                                         BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
+        return "";  // CSPRNG unavailable — never issue a token from a zeroed/undefined buffer
     char tok[33] = {};
     for (int i = 0; i < 16; ++i)
         std::snprintf(tok + i * 2, 3, "%02x", bytes[i]);
@@ -494,6 +496,8 @@ std::string LanServer::HandleAuth(const std::string& body)
         return "{\"ok\":false,\"msg\":\"Invalid credentials\"}";
 
     std::string tok = IssueToken(user);
+    if (tok.empty())
+        return "{\"ok\":false,\"msg\":\"Internal error issuing token\"}";
     return "{\"ok\":true,\"token\":\"" + tok + "\",\"user\":\"" + JEsc(user) + "\"}";
 }
 
