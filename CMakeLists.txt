@@ -36,9 +36,14 @@ set(SOURCES
     src/GraphApiConnector.cpp
     src/GroundStationStore.cpp
     src/IcsConnector.cpp
+    src/LanClient.cpp
+    src/LanServer.cpp
+    src/License.cpp
     src/LoginPanel.cpp
     src/MiniCalendar.cpp
     src/MonthView.cpp
+    src/NetworkInfo.cpp
+    src/NetworkModeDialog.cpp
     src/NLEventDialog.cpp
     src/PassPredictor.cpp
     src/PassPredictPanel.cpp

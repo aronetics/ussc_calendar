@@ -1,4 +1,5 @@
 #include "LanClient.h"
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winhttp.h>
@@ -166,3 +167,45 @@ bool LanClient::Delete(const std::string& path, std::string& err)
     std::string resp = Request("DELETE", path, {}, err);
     return !resp.empty() && resp.find("\"ok\":true") != std::string::npos;
 }
+
+#else  // !_WIN32 — WinHTTP client is Windows-only; stub keeps non-Windows builds linking
+
+LanClient::~LanClient() {}
+
+bool LanClient::Connect(const std::string& /*host*/, int /*port*/, std::string& err)
+{
+    err = "LAN client mode is not supported on this platform";
+    return false;
+}
+
+bool LanClient::Auth(const std::string& /*user*/, const std::string& /*pass*/, std::string& err)
+{
+    err = "LAN client mode is not supported on this platform";
+    return false;
+}
+
+std::string LanClient::Get(const std::string& /*path*/, std::string& err)
+{
+    err = "LAN client mode is not supported on this platform";
+    return {};
+}
+
+std::string LanClient::Post(const std::string& /*path*/, const std::string& /*body*/, std::string& err)
+{
+    err = "LAN client mode is not supported on this platform";
+    return {};
+}
+
+std::string LanClient::Put(const std::string& /*path*/, const std::string& /*body*/, std::string& err)
+{
+    err = "LAN client mode is not supported on this platform";
+    return {};
+}
+
+bool LanClient::Delete(const std::string& /*path*/, std::string& err)
+{
+    err = "LAN client mode is not supported on this platform";
+    return false;
+}
+
+#endif  // _WIN32

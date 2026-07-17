@@ -1,3 +1,4 @@
+#ifdef _WIN32
 // winsock2.h must come before any windows.h / wx/wx.h include
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -940,3 +941,27 @@ std::string LanServer::LocalIp() const
     AdapterInfo ai = GetPrimaryAdapter();
     return ai.isConnected ? ai.ip : "127.0.0.1";
 }
+
+#else  // !_WIN32 — Schannel/BCrypt LAN server is Windows-only; stub keeps non-Windows builds linking
+
+#include "LanServer.h"
+
+LanServer::LanServer(EventStore& ev, SatelliteStore& sat,
+                     GroundStationStore& gs, UserStore& usr, TleStore& tle,
+                     std::function<bool(const std::string&, const std::string&)> authFn)
+    : ev_(ev), sat_(sat), gs_(gs), usr_(usr), tle_(tle), authFn_(std::move(authFn))
+{}
+
+LanServer::~LanServer() {}
+
+bool LanServer::Start(int /*port*/, std::string& err)
+{
+    err = "LAN server is not supported on this platform";
+    return false;
+}
+
+void LanServer::Stop() {}
+
+std::string LanServer::LocalIp() const { return "127.0.0.1"; }
+
+#endif  // _WIN32

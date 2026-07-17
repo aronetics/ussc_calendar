@@ -1,3 +1,6 @@
+#include "NetworkInfo.h"
+
+#ifdef _WIN32
 // Target Win10/11 so IP_ADAPTER_ADDRESSES_LH exposes Dhcpv4Server
 #ifndef _WIN32_WINNT
 #  define _WIN32_WINNT  0x0A00
@@ -18,7 +21,6 @@
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "ws2_32.lib")
 
-#include "NetworkInfo.h"
 #include <memory>
 #include <cstdio>
 #include <cstring>
@@ -276,3 +278,21 @@ std::string GetDomainName()
     WideCharToMultiByte(CP_UTF8, 0, buf, -1, out, sizeof(out), nullptr, nullptr);
     return out;
 }
+
+#else  // !_WIN32 — adapter enumeration / AD CS enrollment are Windows-only; stub keeps non-Windows builds linking
+
+std::vector<AdapterInfo> GetAllAdapters() { return {}; }
+AdapterInfo              GetPrimaryAdapter() { return AdapterInfo{}; }
+MachineCredential        FindMachineCert() { return MachineCredential{}; }
+void                     FreeMachineCert(MachineCredential& mc) { mc.found = false; }
+
+bool TryEnrollMachineCert(std::string& statusOut)
+{
+    statusOut = "AD CS enrollment is not supported on this platform";
+    return false;
+}
+
+std::string GetMachineFqdn() { return ""; }
+std::string GetDomainName()  { return ""; }
+
+#endif  // _WIN32
