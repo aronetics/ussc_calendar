@@ -49,6 +49,7 @@ enum {
     ID_BTN_NL_ADD,
     ID_BTN_LOGOUT,
     ID_MENU_NEW_EVENT,
+    ID_MENU_LOGOUT,
     ID_MENU_QUIT,
     ID_MENU_ABOUT
 };
@@ -64,6 +65,7 @@ wxBEGIN_EVENT_TABLE(CalendarFrame, wxFrame)
     EVT_BUTTON(ID_BTN_NEW_FAB,     CalendarFrame::OnNewEvent)
     EVT_BUTTON(ID_BTN_SIDEBAR_NEW, CalendarFrame::OnNewEvent)
     EVT_MENU(ID_MENU_NEW_EVENT,    CalendarFrame::OnMenuNewEvent)
+    EVT_MENU(ID_MENU_LOGOUT,       CalendarFrame::OnLogout)
     EVT_MENU(ID_MENU_ACCOUNTS,     CalendarFrame::OnMenuAccounts)
     EVT_MENU(ID_MENU_EXPORT_ICS,   CalendarFrame::OnMenuExportICS)
     EVT_MENU(ID_MENU_QUIT,         CalendarFrame::OnMenuQuit)
@@ -99,6 +101,8 @@ CalendarFrame::CalendarFrame()
     fileMenu->Append(ID_MENU_EXPORT_ICS, "Export &ICS...");
     fileMenu->AppendSeparator();
     fileMenu->Append(ID_MENU_ALLIANCE_REPORT, "Alliance &Deconfliction Report...");
+    fileMenu->AppendSeparator();
+    fileMenu->Append(ID_MENU_LOGOUT, "&Logout");
     fileMenu->AppendSeparator();
     fileMenu->Append(ID_MENU_QUIT, "&Quit\tCtrl+Q");
     mb->Append(fileMenu, "&File");
@@ -195,14 +199,7 @@ wxPanel* CalendarFrame::BuildHeader()
 
     // ── Left side ─────────────────────────────────────────────────────────
 
-    // "+ New event" FAB button (blue) — hidden until login
-    fabBtn_ = new wxButton(hdr, ID_BTN_NEW_FAB, "+ New event",
-                           wxDefaultPosition, wxSize(130, 36));
-    fabBtn_->SetBackgroundColour(wxColour(26, 115, 232));
-    fabBtn_->SetForegroundColour(*wxWHITE);
-    fabBtn_->SetFont(wxFont(wxFontInfo(10).Bold().Family(wxFONTFAMILY_SWISS)));
-    fabBtn_->Show(false);
-    hbox->Add(fabBtn_, 0, wxALIGN_CENTER_VERTICAL | wxLEFT | wxRIGHT, 8);
+    fabBtn_ = nullptr; // "+ New Event" lives above the mini calendar in the sidebar
 
     // App title — hidden until login
     calTitle_ = new wxStaticText(hdr, wxID_ANY, "Calendar");
@@ -327,7 +324,7 @@ wxPanel* CalendarFrame::BuildCalSidebar()
     wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
     cs->SetSizer(vbox);
 
-    // "+ New Event" button
+    // "+ New Event" button above the mini calendar
     wxButton* newBtn = new wxButton(cs, ID_BTN_SIDEBAR_NEW, "+ New Event",
                                     wxDefaultPosition, wxSize(160, 40));
     newBtn->SetFont(wxFont(wxFontInfo(11).Family(wxFONTFAMILY_SWISS)));
