@@ -206,6 +206,7 @@ wxPanel* CalendarFrame::BuildHeader()
     calTitle_->SetFont(wxFont(wxFontInfo(18).Bold().Family(wxFONTFAMILY_SWISS)));
     calTitle_->SetForegroundColour(wxColour(32, 33, 36));
     calTitle_->Show(false);
+    hbox->AddSpacer(80);
     hbox->Add(calTitle_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 16);
 
     // "Today" button — hidden until login
