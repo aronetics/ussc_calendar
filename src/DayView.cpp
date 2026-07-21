@@ -1,9 +1,16 @@
 #include "DayView.h"
 #include "EventStore.h"
+#include "CalendarEvent.h"
 #include <wx/dcbuffer.h>
 #include <algorithm>
 
-enum { ID_DAY_TIMER = wxID_HIGHEST + 600 };
+enum {
+    ID_DAY_TIMER   = wxID_HIGHEST + 600,
+    ID_DV_EDIT_ONE = wxID_HIGHEST + 601,
+    ID_DV_EDIT_ALL = wxID_HIGHEST + 602,
+    ID_DV_DEL_ONE  = wxID_HIGHEST + 603,
+    ID_DV_DEL_ALL  = wxID_HIGHEST + 604
+};
 
 wxBEGIN_EVENT_TABLE(DayView, wxScrolledWindow)
     EVT_PAINT(DayView::OnPaint)
@@ -171,7 +178,7 @@ void DayView::DrawEvents(wxDC& dc, int x, int y, int w)
 
         wxRect er(x + 2, ey, w - 4, eh);
 
-        ERect rec; rec.rect = er; rec.id = ep->id; rec.participants = ep->participants;
+        ERect rec; rec.rect = er; rec.id = ep->id; rec.participants = ep->participants; rec.occurrenceDate = date_;
         eRects_.push_back(rec);
 
         dc.SetBrush(wxBrush(ep->color));
@@ -260,14 +267,37 @@ void DayView::OnRightUp(wxMouseEvent& e)
 
     for (const auto& er : eRects_) {
         if (!er.rect.Contains(upt)) continue;
-        wxMenu menu;
-        menu.Append(wxID_EDIT, "Edit Event");
-        menu.AppendSeparator();
-        menu.Append(wxID_DELETE, "Delete Event");
-        int choice = GetPopupMenuSelectionFromUser(menu);
-        if (choice == wxID_EDIT || choice == wxID_DELETE) {
-            if (OnEventActivated) OnEventActivated(er.id);
+
+        bool recurring = false;
+        if (store_) {
+            for (const auto& ev : store_->Events()) {
+                if (ev.id == er.id) {
+                    recurring = (ev.recurrence.freq != RecurFreq::None);
+                    break;
+                }
+            }
         }
+
+        wxMenu menu;
+        if (recurring) {
+            menu.Append(ID_DV_EDIT_ONE, "Edit this event");
+            menu.Append(ID_DV_EDIT_ALL, "Edit all events");
+            menu.AppendSeparator();
+            menu.Append(ID_DV_DEL_ONE,  "Delete this event");
+            menu.Append(ID_DV_DEL_ALL,  "Delete all events");
+        } else {
+            menu.Append(wxID_EDIT,   "Edit event");
+            menu.AppendSeparator();
+            menu.Append(wxID_DELETE, "Delete event");
+        }
+
+        int choice = GetPopupMenuSelectionFromUser(menu);
+        if (choice == wxID_EDIT)       { if (OnEventActivated)       OnEventActivated(er.id); }
+        if (choice == ID_DV_EDIT_ONE)  { if (OnEventEditOccurrence)  OnEventEditOccurrence(er.id, er.occurrenceDate); }
+        if (choice == ID_DV_EDIT_ALL)  { if (OnEventActivated)       OnEventActivated(er.id); }
+        if (choice == wxID_DELETE)     { if (OnEventDeleteRequested)  OnEventDeleteRequested(er.id); }
+        if (choice == ID_DV_DEL_ONE)   { if (OnEventDeleteOccurrence) OnEventDeleteOccurrence(er.id, er.occurrenceDate); }
+        if (choice == ID_DV_DEL_ALL)   { if (OnEventDeleteRequested)  OnEventDeleteRequested(er.id); }
         return;
     }
 
@@ -279,8 +309,7 @@ void DayView::OnRightUp(wxMouseEvent& e)
         slot.SetMinute(minutes % 60);
         slot.SetSecond(0);
         wxMenu menu;
-        menu.Append(wxID_NEW, wxString::Format("New Event at %s",
-            slot.Format("%I:%M %p")));
+        menu.Append(wxID_NEW, "New Event");
         if (GetPopupMenuSelectionFromUser(menu) == wxID_NEW) {
             if (OnNewEventRequested) OnNewEventRequested(slot);
         }

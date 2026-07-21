@@ -3,6 +3,13 @@
 #include <wx/dcbuffer.h>
 #include <algorithm>
 
+enum {
+    ID_MV_EDIT_ONE = wxID_HIGHEST + 101,
+    ID_MV_EDIT_ALL = wxID_HIGHEST + 102,
+    ID_MV_DEL_ONE  = wxID_HIGHEST + 103,
+    ID_MV_DEL_ALL  = wxID_HIGHEST + 104
+};
+
 wxBEGIN_EVENT_TABLE(MonthView, wxPanel)
     EVT_PAINT(MonthView::OnPaint)
     EVT_LEFT_DCLICK(MonthView::OnLeftDClick)
@@ -59,7 +66,8 @@ void MonthView::DrawHeader(wxDC& dc, const wxRect& r)
 }
 
 void MonthView::DrawEventPill(wxDC& dc, const CalendarEvent& e,
-                               const wxRect& cellRect, int yOff)
+                               const wxRect& cellRect, int yOff,
+                               const wxDateTime& cellDate)
 {
     const int PILL_H = 18;
     const int PAD    = 2;
@@ -71,9 +79,10 @@ void MonthView::DrawEventPill(wxDC& dc, const CalendarEvent& e,
 
     // Record for hit testing
     ERect er;
-    er.rect         = pr;
-    er.id           = e.id;
-    er.participants = e.participants;
+    er.rect           = pr;
+    er.id             = e.id;
+    er.participants   = e.participants;
+    er.occurrenceDate = cellDate;
     eRects_.push_back(er);
 
     // Draw rounded pill
@@ -146,7 +155,7 @@ void MonthView::DrawDayCell(wxDC& dc, const wxRect& r,
         int shown = 0;
         for (int i = 0; i < (int)evs.size(); ++i) {
             if (shown < MAX_PILLS - (evs.size() > (size_t)MAX_PILLS ? 1 : 0)) {
-                DrawEventPill(dc, *evs[i], r, shown * (PILL_H + PILL_SP));
+                DrawEventPill(dc, *evs[i], r, shown * (PILL_H + PILL_SP), d);
                 ++shown;
             } else {
                 // "+N more" label
@@ -213,25 +222,50 @@ void MonthView::OnRightUp(wxMouseEvent& e)
 {
     wxPoint pt = e.GetPosition();
 
-    std::string eid = HitTestEvent(pt);
-    wxMenu menu;
-    if (!eid.empty()) {
-        menu.Append(wxID_EDIT, "Edit Event");
-        menu.AppendSeparator();
-        menu.Append(wxID_DELETE, "Delete Event");
+    // Hit-test event pills
+    for (const auto& er : eRects_) {
+        if (!er.rect.Contains(pt)) continue;
+
+        // Determine if recurring
+        bool recurring = false;
+        if (store_) {
+            for (const auto& ev : store_->Events()) {
+                if (ev.id == er.id) {
+                    recurring = (ev.recurrence.freq != RecurFreq::None);
+                    break;
+                }
+            }
+        }
+
+        wxMenu menu;
+        if (recurring) {
+            menu.Append(ID_MV_EDIT_ONE, "Edit this event");
+            menu.Append(ID_MV_EDIT_ALL, "Edit all events");
+            menu.AppendSeparator();
+            menu.Append(ID_MV_DEL_ONE,  "Delete this event");
+            menu.Append(ID_MV_DEL_ALL,  "Delete all events");
+        } else {
+            menu.Append(wxID_EDIT,   "Edit event");
+            menu.AppendSeparator();
+            menu.Append(wxID_DELETE, "Delete event");
+        }
+
         int choice = GetPopupMenuSelectionFromUser(menu);
-        if (choice == wxID_EDIT || choice == wxID_DELETE) {
-            if (OnEventActivated) OnEventActivated(eid);
-        }
-    } else {
-        wxDateTime d = HitTestDay(pt);
-        if (!d.IsValid()) return;
-        menu.Append(wxID_NEW, wxString::Format("New Event on %s %d",
-            wxDateTime::GetMonthName(d.GetMonth(), wxDateTime::Name_Abbr),
-            d.GetDay()));
-        if (GetPopupMenuSelectionFromUser(menu) == wxID_NEW) {
-            if (OnNewEventRequested) OnNewEventRequested(d);
-        }
+        if (choice == wxID_EDIT)       { if (OnEventActivated)      OnEventActivated(er.id); }
+        if (choice == ID_MV_EDIT_ONE)  { if (OnEventEditOccurrence) OnEventEditOccurrence(er.id, er.occurrenceDate); }
+        if (choice == ID_MV_EDIT_ALL)  { if (OnEventActivated)      OnEventActivated(er.id); }
+        if (choice == wxID_DELETE)     { if (OnEventDeleteRequested) OnEventDeleteRequested(er.id); }
+        if (choice == ID_MV_DEL_ONE)   { if (OnEventDeleteOccurrence) OnEventDeleteOccurrence(er.id, er.occurrenceDate); }
+        if (choice == ID_MV_DEL_ALL)   { if (OnEventDeleteRequested) OnEventDeleteRequested(er.id); }
+        return;
+    }
+
+    wxDateTime d = HitTestDay(pt);
+    if (!d.IsValid()) return;
+    wxMenu menu;
+    menu.Append(wxID_NEW, "New Event");
+    if (GetPopupMenuSelectionFromUser(menu) == wxID_NEW) {
+        if (OnNewEventRequested) OnNewEventRequested(d);
     }
 }
 

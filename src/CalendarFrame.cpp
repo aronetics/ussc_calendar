@@ -478,6 +478,15 @@ wxPanel* CalendarFrame::BuildViewArea()
     monthView_->OnEventActivated = [this](const std::string& id) {
         EditEvent(id);
     };
+    monthView_->OnEventEditOccurrence = [this](const std::string& id, const wxDateTime& date) {
+        EditOccurrence(id, date);
+    };
+    monthView_->OnEventDeleteRequested = [this](const std::string& id) {
+        DeleteEvent(id);
+    };
+    monthView_->OnEventDeleteOccurrence = [this](const std::string& id, const wxDateTime& date) {
+        DeleteOccurrence(id, date);
+    };
     monthView_->OnNewEventRequested = [this](const wxDateTime& d) {
         CreateEventOnDate(d);
     };
@@ -488,6 +497,15 @@ wxPanel* CalendarFrame::BuildViewArea()
     weekView_->OnEventActivated = [this](const std::string& id) {
         EditEvent(id);
     };
+    weekView_->OnEventEditOccurrence = [this](const std::string& id, const wxDateTime& date) {
+        EditOccurrence(id, date);
+    };
+    weekView_->OnEventDeleteRequested = [this](const std::string& id) {
+        DeleteEvent(id);
+    };
+    weekView_->OnEventDeleteOccurrence = [this](const std::string& id, const wxDateTime& date) {
+        DeleteOccurrence(id, date);
+    };
     weekView_->OnNewEventRequested = [this](const wxDateTime& d) {
         CreateEventOnDate(d);
     };
@@ -497,6 +515,15 @@ wxPanel* CalendarFrame::BuildViewArea()
     };
     dayView_->OnEventActivated = [this](const std::string& id) {
         EditEvent(id);
+    };
+    dayView_->OnEventEditOccurrence = [this](const std::string& id, const wxDateTime& date) {
+        EditOccurrence(id, date);
+    };
+    dayView_->OnEventDeleteRequested = [this](const std::string& id) {
+        DeleteEvent(id);
+    };
+    dayView_->OnEventDeleteOccurrence = [this](const std::string& id, const wxDateTime& date) {
+        DeleteOccurrence(id, date);
     };
     dayView_->OnNewEventRequested = [this](const wxDateTime& d) {
         CreateEventOnDate(d);
@@ -714,6 +741,27 @@ void CalendarFrame::EditEvent(const std::string& id)
         RefreshAllViews();
         if (miniCal_) miniCal_->Refresh();
     }
+}
+
+void CalendarFrame::EditOccurrence(const std::string& id, const wxDateTime& /*date*/)
+{
+    // Single-occurrence editing: open full event editor for the series.
+    // A future enhancement can create a one-off exception event instead.
+    EditEvent(id);
+}
+
+void CalendarFrame::DeleteEvent(const std::string& id)
+{
+    store_.Remove(id);
+    RefreshAllViews();
+    if (miniCal_) miniCal_->Refresh();
+}
+
+void CalendarFrame::DeleteOccurrence(const std::string& id, const wxDateTime& date)
+{
+    store_.AddException(id, date);
+    RefreshAllViews();
+    if (miniCal_) miniCal_->Refresh();
 }
 
 void CalendarFrame::RefreshAllViews()

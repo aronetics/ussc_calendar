@@ -20,6 +20,7 @@ public:
     void Add(const CalendarEvent& e);
     void Update(const CalendarEvent& e);
     void Remove(const std::string& id);
+    void AddException(const std::string& id, const wxDateTime& date); // exclude one occurrence
 
     std::vector<const CalendarEvent*> EventsOnDate(const wxDateTime& date) const;
 

@@ -38,7 +38,8 @@ struct CalendarEvent {
     wxColour    color;
     std::vector<std::string> participants;  // user IDs
     std::string calendarSource;             // CalendarSource id (e.g. "us", "uk")
-    RecurrenceRule recurrence;
+    RecurrenceRule             recurrence;
+    std::vector<wxDateTime>    excludedDates; // dates removed from a recurring series
 
     CalendarEvent() : color(GCDefault()) {}
 

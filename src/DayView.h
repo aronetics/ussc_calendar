@@ -16,9 +16,12 @@ public:
     wxDateTime GetDate() const { return date_; }
     void Refresh();
 
-    std::function<void(const wxDateTime&)>  OnSlotActivated;
-    std::function<void(const std::string&)> OnEventActivated;
-    std::function<void(const wxDateTime&)>  OnNewEventRequested;
+    std::function<void(const wxDateTime&)>                        OnSlotActivated;
+    std::function<void(const std::string&)>                       OnEventActivated;
+    std::function<void(const std::string&, const wxDateTime&)>    OnEventEditOccurrence;
+    std::function<void(const std::string&)>                       OnEventDeleteRequested;
+    std::function<void(const std::string&, const wxDateTime&)>    OnEventDeleteOccurrence;
+    std::function<void(const wxDateTime&)>                        OnNewEventRequested;
 
 private:
     void OnPaint(wxPaintEvent&);
@@ -44,7 +47,7 @@ private:
     static const int HEADER_H   = 56;
     static const int ALLDAY_H   = 30;
 
-    struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; };
+    struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; wxDateTime occurrenceDate; };
     std::vector<ERect> eRects_;
 
     wxDECLARE_EVENT_TABLE();

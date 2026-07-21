@@ -56,6 +56,9 @@ private:
     void OnNewEvent(wxCommandEvent&);
     void CreateEventOnDate(const wxDateTime& date);
     void EditEvent(const std::string& id);
+    void EditOccurrence(const std::string& id, const wxDateTime& date);
+    void DeleteEvent(const std::string& id);
+    void DeleteOccurrence(const std::string& id, const wxDateTime& date);
     void RefreshAllViews();
 
     // Menu / toolbar handlers

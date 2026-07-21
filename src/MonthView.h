@@ -15,9 +15,12 @@ public:
     wxDateTime GetDate() const { return display_; }
     void Refresh() { wxPanel::Refresh(); }
 
-    std::function<void(const wxDateTime&)>    OnDayActivated;
-    std::function<void(const std::string&)>   OnEventActivated;
-    std::function<void(const wxDateTime&)>    OnNewEventRequested;
+    std::function<void(const wxDateTime&)>                        OnDayActivated;
+    std::function<void(const std::string&)>                       OnEventActivated;       // edit all
+    std::function<void(const std::string&, const wxDateTime&)>    OnEventEditOccurrence;  // edit this
+    std::function<void(const std::string&)>                       OnEventDeleteRequested; // delete all
+    std::function<void(const std::string&, const wxDateTime&)>    OnEventDeleteOccurrence;// delete this
+    std::function<void(const wxDateTime&)>                        OnNewEventRequested;
 
 private:
     void OnPaint(wxPaintEvent&);
@@ -27,7 +30,8 @@ private:
     void OnSize(wxSizeEvent&);
     void DrawHeader(wxDC& dc, const wxRect& r);
     void DrawDayCell(wxDC& dc, const wxRect& r, const wxDateTime& d, bool inMonth);
-    void DrawEventPill(wxDC& dc, const CalendarEvent& e, const wxRect& r, int yOff);
+    void DrawEventPill(wxDC& dc, const CalendarEvent& e, const wxRect& r, int yOff,
+                       const wxDateTime& cellDate);
     wxDateTime HitTestDay(const wxPoint& pt) const;
     std::string HitTestEvent(const wxPoint& pt) const;
 
@@ -41,7 +45,7 @@ private:
     struct Cell { wxRect rect; wxDateTime date; bool inMonth; };
     std::vector<Cell> cells_;
 
-    struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; };
+    struct ERect { wxRect rect; std::string id; std::vector<std::string> participants; wxDateTime occurrenceDate; };
     std::vector<ERect> eRects_;
 
     wxDECLARE_EVENT_TABLE();

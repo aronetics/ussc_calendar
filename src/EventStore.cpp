@@ -229,6 +229,12 @@ bool CalendarEvent::OccursOnDate(const wxDateTime& d) const
 
     wxDateTime day(d.GetDay(), d.GetMonth(), d.GetYear(), 0, 0, 0);
 
+    // Skip dates the user has individually removed from the series
+    for (const wxDateTime& ex : excludedDates) {
+        wxDateTime exDay(ex.GetDay(), ex.GetMonth(), ex.GetYear(), 0, 0, 0);
+        if (exDay == day) return false;
+    }
+
     if (recurrence.freq == RecurFreq::None) {
         // Original single-occurrence logic
         wxDateTime dayEnd = day;
@@ -344,6 +350,14 @@ static std::string SerializeOneEvent(const CalendarEvent& e)
         if (e.recurrence.count > 0)
             o << ",\"rc\":" << e.recurrence.count;
     }
+    if (!e.excludedDates.empty()) {
+        o << ",\"xd\":[";
+        for (size_t i = 0; i < e.excludedDates.size(); ++i) {
+            if (i) o << ",";
+            o << "\"" << FormatDateTime(e.excludedDates[i]) << "\"";
+        }
+        o << "]";
+    }
     o << "}";
     return o.str();
 }
@@ -378,6 +392,10 @@ void EventStore::Load()
             e.recurrence.count    = ExtractJsonInt(obj, "rc", 0);
             std::string ru = ExtractJsonString(obj, "ru");
             if (!ru.empty()) e.recurrence.until = ParseDateTime(ru);
+            for (const auto& xs : ExtractJsonArray(obj, "xd")) {
+                wxDateTime xd = ParseDateTime(xs);
+                if (xd.IsValid()) e.excludedDates.push_back(xd);
+            }
             if (!e.id.empty()) events_.push_back(e);
         }
         return;
@@ -449,6 +467,14 @@ void EventStore::Save() const
             if (e.recurrence.count > 0)
                 f << ",\"rc\":" << e.recurrence.count;
         }
+        if (!e.excludedDates.empty()) {
+            f << ",\"xd\":[";
+            for (size_t j = 0; j < e.excludedDates.size(); ++j) {
+                if (j) f << ",";
+                f << "\"" << FormatDateTime(e.excludedDates[j]) << "\"";
+            }
+            f << "]";
+        }
         f << "}";
         if (i + 1 < events_.size()) f << ",";
         f << "\n";
@@ -495,6 +521,22 @@ void EventStore::Remove(const std::string& id)
         client_->Delete("/api/events/" + id, err);
     } else {
         Save();
+    }
+}
+
+void EventStore::AddException(const std::string& id, const wxDateTime& date)
+{
+    wxDateTime day(date.GetDay(), date.GetMonth(), date.GetYear(), 0, 0, 0);
+    for (auto& ev : events_) {
+        if (ev.id != id) continue;
+        ev.excludedDates.push_back(day);
+        if (client_) {
+            std::string err;
+            client_->Put("/api/events/" + id, SerializeOneEvent(ev), err);
+        } else {
+            Save();
+        }
+        return;
     }
 }
 
