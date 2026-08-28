@@ -106,7 +106,7 @@ analyze:
 
 build-windows:
   stage: build
-  tags: [tilt-windows]
+  tags: [windows-runner]
   variables:
     <<: *windows_vars
     GIT_CLEAN_FLAGS: -ffdx
@@ -171,7 +171,7 @@ package:
 
 package-windows:
   stage: package
-  tags: [tilt-windows]
+  tags: [windows-runner]
   variables:
     <<: *windows_vars
     GIT_CLEAN_FLAGS: -ffdx
